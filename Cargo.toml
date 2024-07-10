@@ -1,0 +1,16 @@
+[package]
+name = "ultraplonk_verifier"
+version = "0.1.0"
+edition = "2021"
+description = "A Rust library to verify ultraplonk proof. This library is a wrapping for C++ barretenberg library."
+keywords = ["crypto", "blockchain", "cryptography"]
+
+[dependencies]
+thiserror = "1.0.61"
+
+[build-dependencies]
+bindgen = "0.69"
+cc = "1.0"
+cmake = "0.1"
+sys-info = "0.9"
+num_cpus = "1.16"

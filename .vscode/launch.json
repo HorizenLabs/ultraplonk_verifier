@@ -1,0 +1,68 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(lldb) prove & verify",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/barretenberg/cpp/build/bin/bb",
+            "args": [
+                "prove_and_verify",
+                "--verbose",
+            ],
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "(lldb) prove & output",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/barretenberg/cpp/build/bin/bb",
+            "args": [
+                "prove_ultra_honk_output_all",
+                "-o",
+                "./target",
+                "--verbose",
+            ],
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "(lldb) verify",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/barretenberg/cpp/build/bin/bb",
+            "args": [
+                "verify",
+                "-k",
+                "./target/vk",
+                "-p",
+                "./proofs/proof",
+            ],
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "(lldb) write vk",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/barretenberg/cpp/build/bin/bb",
+            "args": [
+                "write_vk",
+                "-b",
+                "./target/program.json",
+            ],
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "(lldb) write solidity verifier",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/barretenberg/cpp/build/bin/bb",
+            "args": [
+                "contract",
+            ],
+            "cwd": "${workspaceFolder}",
+        }
+    ]
+}
