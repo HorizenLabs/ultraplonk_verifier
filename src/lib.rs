@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 // Suppress the flurry of warnings caused by using "C" naming conventions
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
