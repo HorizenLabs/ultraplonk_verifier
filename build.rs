@@ -15,14 +15,22 @@
 
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
-use std::path::{PathBuf, Path};
 
 fn main() {
     // Notify Cargo to rerun this build script if `build.rs` changes.
     println!("cargo:rerun-if-changed=build.rs");
 
     let lib_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("barretenberg/cpp");
+    if !lib_path.exists() {
+        eprintln!("The barretenberg submodule is missing. Please run `git submodule update --init --recursive`.");
+        // Fetch the submodule
+        let _ = Command::new("git")
+            .args(&["submodule", "update", "--recursive"])
+            .status()
+            .expect("Failed to fetch submodules");
+    }
 
     // Notify Cargo to rerun if any C++ source files change.
     for entry in fs::read_dir(&lib_path).unwrap() {
