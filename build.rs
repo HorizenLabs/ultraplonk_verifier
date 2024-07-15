@@ -15,11 +15,18 @@
 
 use std::env;
 use std::fs;
+use std::process::Command;
 use std::path::PathBuf;
 
 fn main() {
     // Notify Cargo to rerun this build script if `build.rs` changes.
     println!("cargo:rerun-if-changed=build.rs");
+
+    // Ensure the submodule is initialized and updated
+    let _ = Command::new("git")
+        .args(&["submodule", "update", "--init", "--recursive"])
+        .status()
+        .expect("Failed to update submodules");
 
     let lib_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("barretenberg/cpp");
 
