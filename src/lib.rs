@@ -209,4 +209,35 @@ mod tests {
         let verified = verify(proof, vk).unwrap();
         assert!(verified);
     }
+
+    #[test]
+    fn test_verify_invalid_pub_input() {
+        let mut proof = read_file("./assets/proof", None).unwrap();
+        // Change the first byte of the proof data (pub input) to make it invalid
+        proof[0] = 1;
+        let vk = read_file("./assets/vk", None).unwrap();
+        let verified = verify(proof, vk).unwrap();
+        assert!(!verified);
+    }
+
+    #[test]
+    fn test_verify_invalid_pub_input_length() {
+        let mut proof = read_file("./assets/proof", None).unwrap();
+        // remove first 32 bytes of the proof data (pub input) to make it invalid
+        proof = proof[32..].to_vec();
+        // Change the second byte of the proof to make it invalid
+        let vk = read_file("./assets/vk", None).unwrap();
+        let verified = verify(proof, vk).unwrap();
+        assert!(!verified);
+    }
+
+    #[test]
+    fn test_verify_invalid_proof() {
+        let proof = read_file("./assets/proof", None).unwrap();
+        let mut vk = read_file("./assets/vk", None).unwrap();
+        // Change the first byte of the verification key to make it invalid
+        vk[38] = 1;
+        let verified = verify(proof, vk).unwrap();
+        assert!(!verified);
+    }
 }
