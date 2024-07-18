@@ -79,8 +79,8 @@ fn test_verify_invalid_proof() {
     // Modify the proof to make it invalid
     proof[138] = 1;
     match verify(proof, vk) {
-        // TODO: We have a very ambiguos situation here, if the proof points are on the curve and they are not valid
-        // the result is Ok(false) but if the proof points are not on the curve the result is Err(BackendError)
+        // TODO: We have a very ambiguos situation here, if the EC proof points are on the curve but do not satisfy the constraints
+        // the result is Ok(false) but if the proof EC points are not on the curve the result is Err(BackendError)
         // Currently we are taking the easiest way to handle this situation, but we need to improve it
         Ok(_) => panic!("Verification should have failed"),
         Err(e) => match e {
@@ -99,8 +99,8 @@ fn test_verify_invalid_vk() {
     // Modify the proof to make it invalid
     vk[138] = 1;
     match verify(proof, vk) {
-        // TODO: We have a very ambiguos situation here, if the proof points are on the curve and they are not valid
-        // the result is Ok(false) but if the proof points are not on the curve the result is Err(BackendError)
+        // TODO: We have a very ambiguos situation here, if the EC proof points are on the curve but do not satisfy the constraints
+        // the result is Ok(false) but if the proof EC points are not on the curve the result is Err(BackendError)
         // Currently we are taking the easiest way to handle this situation, but we need to improve it
         Ok(_) => panic!("Verification should have failed"),
         Err(e) => match e {
