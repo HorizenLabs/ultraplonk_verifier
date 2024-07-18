@@ -3,6 +3,7 @@ name = "ultraplonk_verifier"
 version = "0.1.0"
 edition = "2021"
 description = "A Rust library to verify ultraplonk proof. This library is a wrapping for C++ barretenberg library."
+repository = "https://github.com/HorizenLabs/ultraplonk_verifier"
 keywords = ["crypto", "blockchain", "cryptography"]
 
 [dependencies]
