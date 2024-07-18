@@ -15,7 +15,6 @@
 
 use ultraplonk_verifier::{verify, AcirComposerError};
 
-#[allow(dead_code)]
 static PROOF: [u8; 2144] = hex_literal::hex!(
     "
         0520122e5831cc97fd2c08ab73ea798207d9ee8064ab401cc0722a2575f093e0
@@ -88,7 +87,6 @@ static PROOF: [u8; 2144] = hex_literal::hex!(
 "
 );
 
-#[allow(dead_code)]
 static VK: [u8; 1719] = hex_literal::hex!(
     "
         000000020000001000000002000000170000000449445f31143131b30c289c43
@@ -148,7 +146,6 @@ static VK: [u8; 1719] = hex_literal::hex!(
     "
 );
 
-#[allow(dead_code)]
 static PUBS: [u8; 64] = hex_literal::hex!(
     "
         0000000000000000000000000000000000000000000000000000000000000002
