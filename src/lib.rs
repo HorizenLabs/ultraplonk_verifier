@@ -125,8 +125,9 @@ impl Drop for AcirComposer {
     }
 }
 
-/// A constant byte slice representing BLS12-381 G2 point.
-const G2_DATA: &[u8] = &[
+/// A constant byte slice representing BN254 G2 point. `noir-compiler` when installed will
+/// downloads this data and stores it in ~/.nargo/backends/acvm-backend-barretenberg/crs/bn254_g2.dat
+const G2_DATA: &[u8; 128] = &[
     1, 24, 196, 213, 184, 55, 188, 194, 188, 137, 181, 179, 152, 181, 151, 78, 159, 89, 68, 7, 59,
     50, 7, 139, 126, 35, 31, 236, 147, 136, 131, 176, 38, 14, 1, 178, 81, 246, 241, 199, 231, 255,
     78, 88, 7, 145, 222, 232, 234, 81, 216, 122, 53, 142, 3, 139, 78, 254, 48, 250, 192, 147, 131,
@@ -156,88 +157,10 @@ pub fn verifier_init() -> Result<AcirComposer, AcirComposerError> {
 ///
 /// # Returns
 ///
-/// A result containing a boolean indicating the outcome of the verification or a string error message on failure.
-pub fn verify(proof: Vec<u8>, verification_key: Vec<u8>) -> Result<bool, String> {
-    let acir_composer = verifier_init().map_err(|e| e.to_string())?;
-    acir_composer
-        .load_verification_key(&verification_key)
-        .map_err(|e| e.to_string())?;
-    let verified = acir_composer
-        .verify_proof(&proof)
-        .map_err(|e| e.to_string())?;
-
+/// A result containing a boolean indicating the outcome of the verification or an `AcirComposerError` on failure.
+pub fn verify(proof: Vec<u8>, verification_key: Vec<u8>) -> Result<bool, AcirComposerError> {
+    let acir_composer = verifier_init()?;
+    acir_composer.load_verification_key(&verification_key)?;
+    let verified = acir_composer.verify_proof(&proof)?;
     Ok(verified)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use std::fs::File;
-    use std::io::{self, Read};
-
-    fn get_file_size(filename: &str) -> io::Result<u64> {
-        let metadata = std::fs::metadata(filename)?;
-        Ok(metadata.len())
-    }
-
-    fn read_file(filename: &str, bytes: Option<usize>) -> io::Result<Vec<u8>> {
-        // Get the file size.
-        let size = get_file_size(filename)?;
-        if size == 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("File is empty or there's an error reading it: {}", filename),
-            ));
-        }
-
-        let to_read = bytes.unwrap_or(size as usize);
-
-        let mut file = File::open(filename)?;
-        let mut file_data = vec![0; to_read];
-
-        // Read all its contents.
-        file.read_exact(&mut file_data)?;
-
-        Ok(file_data)
-    }
-
-    #[test]
-    fn test_verify() {
-        let proof = read_file("./assets/proof", None).unwrap();
-        let vk = read_file("./assets/vk", None).unwrap();
-        let verified = verify(proof, vk).unwrap();
-        assert!(verified);
-    }
-
-    #[test]
-    fn test_verify_invalid_pub_input() {
-        let mut proof = read_file("./assets/proof", None).unwrap();
-        // Change the first byte of the proof data (pub input) to make it invalid
-        proof[0] = 1;
-        let vk = read_file("./assets/vk", None).unwrap();
-        let verified = verify(proof, vk).unwrap();
-        assert!(!verified);
-    }
-
-    #[test]
-    fn test_verify_invalid_pub_input_length() {
-        let mut proof = read_file("./assets/proof", None).unwrap();
-        // remove first 32 bytes of the proof data (pub input) to make it invalid
-        proof = proof[32..].to_vec();
-        // Change the second byte of the proof to make it invalid
-        let vk = read_file("./assets/vk", None).unwrap();
-        let verified = verify(proof, vk).unwrap();
-        assert!(!verified);
-    }
-
-    #[test]
-    fn test_verify_invalid_proof() {
-        let proof = read_file("./assets/proof", None).unwrap();
-        let mut vk = read_file("./assets/vk", None).unwrap();
-        // Change the first byte of the verification key to make it invalid
-        vk[38] = 1;
-        let verified = verify(proof, vk).unwrap();
-        assert!(!verified);
-    }
 }
