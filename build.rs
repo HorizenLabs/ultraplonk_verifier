@@ -35,7 +35,7 @@ fn main() {
     // Barretenberg functions throw exceptions on error, so we need to catch them.
     // copy files from assets/code/ to barretenberg/cpp/src/barretenberg/dsl/acir_proofs/
     // TODO: find better way to handle exceptions
-    let assets_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("assets/code");
+    let assets_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("resources/code");
     let acir_proofs_path = lib_path.join("src/barretenberg/dsl/acir_proofs");
     for entry in fs::read_dir(&assets_path).unwrap() {
         let entry = entry.unwrap();
