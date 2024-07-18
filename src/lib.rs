@@ -37,6 +37,21 @@ pub enum BackendError {
     BindingCallPointerError(String),
 }
 
+/// Simplified representation of a verification key for cryptographic verification processes.
+#[derive(Debug, Copy, Clone)]
+struct VerificationKeyPart {
+    circuit_type: u32, // Type of circuit
+    #[allow(dead_code)]
+    circuit_size: u32, // Size of the circuit, not used in verification
+    pub_input_size: u32, // Expected number of public inputs
+}
+
+// Expected sizes in bytes for proof.
+pub const PROOF_SIZE: usize = 2144;
+
+// Expected sizes in bytes for verification key.
+pub const VK_SIZE: usize = 1719;
+
 /// Serializes a slice of bytes into a `Vec<u8>` with the first 4 bytes representing the length of the data slice in big-endian format, followed by the data itself.
 ///
 /// # Arguments
@@ -61,15 +76,37 @@ pub fn serialize_slice(data: &[u8]) -> Vec<u8> {
     buffer
 }
 
-/// `AcirComposerError` enumerates all possible errors returned by the ACIR composer.
+/// Enumerates possible errors within the ACIR composer.
 ///
-/// # Variants
+/// This enum is leveraged for error handling across the ACIR composer, encapsulating various
+/// error types that can arise during the composition and verification processes.
 ///
-/// - `BackendError(BackendError)`: Wraps a `BackendError` indicating the error originated from the backend.
+/// Variants:
+///
+/// - `BackendError`: Errors originating from the cryptographic backend. This includes issues
+///   encountered during cryptographic operations such as hashing, encryption, etc.
+///
+/// - `VerifierKeyPartError`: Errors related to the verification key, such as issues with its
+///   format, size, or content.
+///
+/// - `PublicInputError`: Errors associated with public inputs, including incorrect sizes or
+///   formats that do not match expectations.
+///
+/// - `InvalidProofError`: Errors indicating that a proof is invalid. This could be due to
+///   incorrect data, formatting, or failure to satisfy cryptographic verification.
 #[derive(thiserror::Error, Debug)]
 pub enum AcirComposerError {
     #[error("BackendError")]
     BackendError(#[from] BackendError),
+
+    #[error("VerifierKeyPartError")]
+    VerifierKeyPartError(String),
+
+    #[error("PublicInputError")]
+    PublicInputError(String),
+
+    #[error("InvalidProofError")]
+    InvalidProofError(String),
 }
 
 /// Represents an ACIR composer with a pointer to the underlying C structure.
@@ -148,19 +185,134 @@ pub fn verifier_init() -> Result<AcirComposer, AcirComposerError> {
     Ok(acir_composer)
 }
 
-/// Verifies a given proof using a verification key.
+/// Verifies a cryptographic proof against a set of public inputs and a verification key.
+///
+/// This function takes the verification key data (`vk_data`), the proof to be verified (`proof`),
+/// and the public inputs (`pubs`) as parameters. It performs several checks to ensure the integrity
+/// and correctness of the inputs before proceeding with the verification process.
 ///
 /// # Arguments
 ///
-/// * `proof` - A vector of bytes representing the proof.
-/// * `verification_key` - A vector of bytes representing the verification key.
+/// * `vk_data` - A `Vec<u8>` containing the serialized data of the verification key.
+/// * `proof` - A `Vec<u8>` containing the serialized proof to be verified.
+/// * `pubs` - A `Vec<u8>` containing the serialized public inputs.
 ///
 /// # Returns
 ///
-/// A result containing a boolean indicating the outcome of the verification or an `AcirComposerError` on failure.
-pub fn verify(proof: Vec<u8>, verification_key: Vec<u8>) -> Result<bool, AcirComposerError> {
+/// A `Result<bool, AcirComposerError>` where:
+/// - `Ok(true)` indicates that the proof is valid.
+/// - `Ok(false)` indicates that the proof is invalid.
+/// - `Err(AcirComposerError)` indicates that an error occurred during the verification process.
+///
+/// # Errors
+///
+/// This function can return an `AcirComposerError` in several cases, including:
+/// - If the length of the verification key data does not match the expected size (`VK_SIZE`).
+/// - If the length of the proof does not match the expected size (`PROOF_SIZE`).
+/// - If the length of the public inputs is not a multiple of 32 bytes.
+/// - If the public input size does not match the size specified in the verification key.
+/// - If the circuit type specified in the verification key is not ULTRA-PLONK.
+///
+/// # Example
+///
+/// ```
+/// let vk_data = vec![...]; // Verification key data
+/// let proof = vec![...]; // Proof to be verified
+/// let pubs = vec![...]; // Public inputs
+///
+/// match verify(vk_data, proof, pubs) {
+///     Ok(true) => println!("Proof is valid."),
+///     Ok(false) => println!("Proof is invalid."),
+///     Err(e) => println!("Verification error: {:?}", e),
+/// }
+/// ```
+///
+/// # Note
+///
+/// This function assumes that `VK_SIZE` and `PROOF_SIZE` are predefined constants that specify
+/// the expected sizes of the verification key and proof, respectively.
+pub fn verify(vk_data: Vec<u8>, proof: Vec<u8>, pubs: Vec<u8>) -> Result<bool, AcirComposerError> {
+    if vk_data.len() != VK_SIZE {
+        return Err(AcirComposerError::VerifierKeyPartError(
+            "Verification key length is not 1719 bytes".to_string(),
+        ));
+    }
+
+    if proof.len() != PROOF_SIZE {
+        return Err(AcirComposerError::InvalidProofError(
+            "Proof length is not 2144 bytes".to_string(),
+        ));
+    }
+
+    if pubs.len() % 32 != 0 {
+        return Err(AcirComposerError::PublicInputError(
+            "Public input length is not a multiple of 32".to_string(),
+        ));
+    }
+
+    let vk_part = deserialize_vk_part(&vk_data)?;
+    if vk_part.pub_input_size != pubs.len() as u32 / 32 {
+        return Err(AcirComposerError::PublicInputError(
+            "Public input length does not match the verification key".to_string(),
+        ));
+    }
+    // ULTRA-PLONK circuit type is 2
+    if vk_part.circuit_type != 2 {
+        return Err(AcirComposerError::VerifierKeyPartError(
+            "Verification key circuit type is not ULTRA-PLONK".to_string(),
+        ));
+    }
+
+    let proof_data = [pubs.as_slice(), &proof].concat();
     let acir_composer = verifier_init()?;
-    acir_composer.load_verification_key(&verification_key)?;
-    let verified = acir_composer.verify_proof(&proof)?;
+    acir_composer.load_verification_key(&vk_data)?;
+    let verified = acir_composer.verify_proof(&proof_data)?;
     Ok(verified)
+}
+
+/// Deserializes a byte slice into a `VerificationKeyPart` struct.
+/// The byte slice is expected to contain the serialized data of the verification key.
+///
+/// # Arguments
+///
+/// * `buffer` - A byte slice containing the serialized data of the verification key.
+///
+/// # Returns
+///
+/// A `Result<VerificationKeyPart, AcirComposerError>` where:
+/// - `Ok(VerificationKeyPart)` contains the deserialized verification key part.
+/// - `Err(AcirComposerError)` indicates an error occurred during deserialization.
+fn deserialize_vk_part(buffer: &[u8]) -> Result<VerificationKeyPart, AcirComposerError> {
+    if buffer.len() < std::mem::size_of::<VerificationKeyPart>() {
+        return Err(AcirComposerError::VerifierKeyPartError(
+            "Buffer length is not sufficient".to_string(),
+        ));
+    }
+
+    // Read the circuit_type (u32)
+    let circuit_type = to_u32(&buffer[0..4]);
+    let circuit_size = to_u32(&buffer[4..8]);
+    let pub_input_size = to_u32(&buffer[8..12]);
+
+    Ok(VerificationKeyPart {
+        circuit_type,
+        circuit_size,
+        pub_input_size,
+    })
+}
+
+/// Converts a byte slice to a u32 value.
+///
+/// # Arguments
+///
+/// * `buffer` - A byte slice containing the data to be converted.
+///
+/// # Returns
+///
+/// A u32 value obtained by converting the byte slice.
+fn to_u32(buffer: &[u8]) -> u32 {
+    ((buffer[0] as u32) << 24)
+        | ((buffer[1] as u32) << 16)
+        | ((buffer[2] as u32) << 8)
+        | (buffer[3] as u32)
 }
