@@ -32,6 +32,19 @@ fn main() {
             .expect("Failed to fetch submodules");
     }
 
+    // Barretenberg functions throw exceptions on error, so we need to catch them.
+    // copy files from assets/code/ to barretenberg/cpp/src/barretenberg/dsl/acir_proofs/
+    // TODO: find better way to handle exceptions
+    let assets_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("assets/code");
+    let acir_proofs_path = lib_path.join("src/barretenberg/dsl/acir_proofs");
+    for entry in fs::read_dir(&assets_path).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        let file_name = path.file_name().unwrap();
+        let dest_path = acir_proofs_path.join(file_name);
+        fs::copy(&path, &dest_path).unwrap();
+    }
+
     // Notify Cargo to rerun if any C++ source files change.
     for entry in fs::read_dir(&lib_path).unwrap() {
         let entry = entry.unwrap();
@@ -90,12 +103,14 @@ fn generate_bindings(include_path: &PathBuf) {
             r#"
                 #include <barretenberg/dsl/acir_proofs/c_bind.hpp>
                 #include <barretenberg/srs/c_bind.hpp>
+                #include <barretenberg/dsl/acir_proofs/rust_bind.hpp>
             "#,
         )
         .allowlist_function("acir_new_acir_composer")
         .allowlist_function("acir_delete_acir_composer")
         .allowlist_function("acir_load_verification_key")
         .allowlist_function("acir_verify_proof")
+        .allowlist_function("rust_acir_verify_proof")
         .allowlist_function("srs_init_srs")
         // Generate the bindings.
         .generate()
