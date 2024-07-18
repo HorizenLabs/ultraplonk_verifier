@@ -13,11 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{ffi::c_void, ptr};
+use std::{ffi::c_void, ffi::CStr, ptr};
 
 use crate::{
     acir_delete_acir_composer, acir_load_verification_key, acir_new_acir_composer,
-    acir_verify_proof, serialize_slice, srs_init_srs, BackendError,
+    /*acir_verify_proof,*/ rust_acir_verify_proof, serialize_slice, srs_init_srs,
+    BackendError,
 };
 
 pub type AcirComposerPtr = *mut c_void;
@@ -107,13 +108,30 @@ pub fn load_verification_key(
 /// or a `BackendError` if an error occurs during verification.
 pub fn verify_proof(acir_composer: &AcirComposerPtr, proof: &[u8]) -> Result<bool, BackendError> {
     let mut result = false;
-    unsafe {
-        acir_verify_proof(
+    // unsafe {
+    //     acir_verify_proof(
+    //         acir_composer,
+    //         serialize_slice(proof).as_slice().as_ptr(),
+    //         &mut result,
+    //     )
+    // };
+
+    let error_msg_ptr = unsafe {
+        rust_acir_verify_proof(
             acir_composer,
             serialize_slice(proof).as_slice().as_ptr(),
             &mut result,
         )
     };
+    if !error_msg_ptr.is_null() {
+        let error_cstr = unsafe { CStr::from_ptr(error_msg_ptr) };
+        let error_str = error_cstr.to_str().expect("Invalid UTF-8 string");
+        return Err(BackendError::BindingCallError(format!(
+            "C++ error: {}",
+            error_str
+        )));
+    }
+
     Ok(result)
 }
 
