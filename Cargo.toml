@@ -8,6 +8,9 @@ keywords = ["crypto", "blockchain", "cryptography"]
 [dependencies]
 thiserror = "1.0.61"
 
+[dev-dependencies]
+hex-literal = "0.4.1"
+
 [build-dependencies]
 bindgen = "0.69"
 cc = "1.0"
