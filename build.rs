@@ -63,14 +63,14 @@ fn main() {
 
     // Determine the Cargo build type
     let build_type = match env::var("PROFILE").as_deref() {
-        Ok("release") => "Release",
+        Ok("release") => "RelWithAssert",
         _ => "Debug",
     };
 
     // Build using the cmake crate. native-lib is the name of the CMake project.
     let dst = cmake::Config::new(&lib_path)
-        .define("CMAKE_BUILD_TYPE", build_type)
-        .define("CMAKE_BUILD_PARALLEL_LEVEL", num_cpus::get().to_string())
+        .configure_arg(format!("-DCMAKE_BUILD_TYPE={}", build_type))
+        .configure_arg("-DMULTITHREADING=OFF")
         .build_target("bb")
         .very_verbose(true)
         .build();

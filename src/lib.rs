@@ -65,6 +65,8 @@ pub const VK_SIZE: usize = 1719;
 /// # Examples
 ///
 /// ```
+/// use ultraplonk_verifier::serialize_slice;
+/// 
 /// let data = [1, 2, 3, 4];
 /// let serialized = serialize_slice(&data);
 /// assert_eq!(serialized, vec![0, 0, 0, 4, 1, 2, 3, 4]);
@@ -215,7 +217,9 @@ pub fn verifier_init() -> Result<AcirComposer, AcirComposerError> {
 ///
 /// # Example
 ///
-/// ```
+/// ```compile_fail
+/// use ultraplonk_verifier::verify;
+/// 
 /// let vk_data = vec![...]; // Verification key data
 /// let proof = vec![...]; // Proof to be verified
 /// let pubs = vec![...]; // Public inputs
