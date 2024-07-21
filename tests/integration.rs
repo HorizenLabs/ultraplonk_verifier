@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use serial_test::serial;
 use ultraplonk_verifier::{verify, AcirComposerError};
 
 static PROOF: [u8; 2144] = hex_literal::hex!(
@@ -154,12 +155,14 @@ static PUBS: [u8; 64] = hex_literal::hex!(
 );
 
 #[test]
+#[serial]
 fn should_verify_proof() {
     let verified = verify(VK.to_vec(), PROOF.to_vec(), PUBS.to_vec()).unwrap();
     assert!(verified);
 }
 
 #[test]
+#[serial]
 fn test_verify_invalid_pub_input() {
     let mut pub_input = PUBS.to_vec();
     pub_input[0] = 1;
@@ -168,6 +171,7 @@ fn test_verify_invalid_pub_input() {
 }
 
 #[test]
+#[serial]
 fn test_verify_invalid_pub_input_length() {
     match verify(VK.to_vec(), PROOF.to_vec(), PUBS[..32].to_vec()) {
         Ok(_) => panic!("Verification should have failed"),
@@ -179,6 +183,7 @@ fn test_verify_invalid_pub_input_length() {
 }
 
 #[test]
+#[serial]
 fn test_verify_invalid_proof() {
     let mut proof = PROOF.to_vec();
     proof[138] = 1;
@@ -195,6 +200,7 @@ fn test_verify_invalid_proof() {
 }
 
 #[test]
+#[serial]
 fn test_verify_invalid_vk() {
     let mut vk = VK.to_vec();
     // Modify the proof to make it invalid
