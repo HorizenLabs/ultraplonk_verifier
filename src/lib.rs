@@ -18,6 +18,9 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+use std::collections::HashMap;
+use std::convert::TryInto;
+
 mod acir;
 
 // This matches bindgen::Builder output
@@ -45,38 +48,97 @@ struct Commitment {
 
 /// Simplified representation of a verification key for cryptographic verification processes.
 #[derive(Debug, Copy, Clone)]
-struct VerificationKeyPart {
+struct VerifierKey {
     circuit_type: u32, // Type of circuit
     #[allow(dead_code)]
     circuit_size: u32, // Size of the circuit, not used in verification
     num_public_inputs: u32, // Expected number of public inputs
 
     q_1: Commitment,
-    // q_2: Commitment,
-    // q_3: Commitment,
-    // q_4: Commitment,
-    // q_m: Commitment,
-    // q_c: Commitment,
-    // q_arith: Commitment,
-    // q_sort: Commitment,
-    // q_eliptic: Commitment,
-    // q_aux: Commitment,
+    q_2: Commitment,
+    q_3: Commitment,
+    q_4: Commitment,
+    q_m: Commitment,
+    q_c: Commitment,
+    q_arith: Commitment,
+    q_sort: Commitment,
+    q_eliptic: Commitment,
+    q_aux: Commitment,
 
-    // sigma_1: Commitment,
-    // sigma_2: Commitment,
-    // sigma_3: Commitment,
-    // sigma_4: Commitment,
+    sigma_1: Commitment,
+    sigma_2: Commitment,
+    sigma_3: Commitment,
+    sigma_4: Commitment,
 
-    // table_1: Commitment,
-    // table_2: Commitment,
-    // table_3: Commitment,
-    // table_4: Commitment,
-    // table_type: Commitment,
+    table_1: Commitment,
+    table_2: Commitment,
+    table_3: Commitment,
+    table_4: Commitment,
+    table_type: Commitment,
 
-    // id_1: Commitment,
-    // id_2: Commitment,
-    // id_3: Commitment,
-    // id_4: Commitment,
+    id_1: Commitment,
+    id_2: Commitment,
+    id_3: Commitment,
+    id_4: Commitment,
+}
+
+impl VerifierKey {
+    fn deserialize(buffer: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+        let circuit_type = u32::from_le_bytes(buffer[0..4].try_into()?);
+        let circuit_size = u32::from_le_bytes(buffer[4..8].try_into()?);
+        let num_public_inputs = u32::from_le_bytes(buffer[8..12].try_into()?);
+
+        let mut commitments_num = u32::from_le_bytes(buffer[12..16].try_into()?) as usize;
+        let mut commitments = HashMap::new();
+        let mut i = 16;
+        while i < buffer.len() && commitments_num > 0 {
+            let key_size = u32::from_le_bytes(buffer[i..i + 4].try_into()?) as usize;
+            i += 4;
+            let key = &buffer[i..i + key_size];
+            i += key_size;
+            let key = String::from_utf8(key)?;
+            let value = Commitment {
+                x: buffer[i..i + 32].try_into()?,
+                y: buffer[i + 32..i + 64].try_into()?,
+            };
+            i += 64;
+            commitments.insert(key, value);
+            commitments_num -= 1;
+        }
+
+        if commitments_num != 0 {
+            return Err("Failed to deserialize commitments".into());
+        }
+
+        Ok(Self {
+            circuit_type,
+            circuit_size,
+            num_public_inputs,
+            q_1: *commitments.get("Q_1")?,
+            q_2: *commitments.get("Q_2")?,
+            q_3: *commitments.get("Q_3")?,
+            q_4: *commitments.get("Q_4")?,
+            q_m: *commitments.get("Q_M")?,
+            q_c: *commitments.get("Q_C")?,
+            q_arith: *commitments.get("Q_ARITH")?,
+            q_sort: *commitments.get("Q_SORT")?,
+            q_eliptic: *commitments.get("Q_ELIPTIC")?,
+            q_aux: *commitments.get("Q_AUX")?,
+            sigma_1: *commitments.get("SIGMA_1")?,
+            sigma_2: *commitments.get("SIGMA_2")?,
+            sigma_3: *commitments.get("SIGMA_3")?,
+            sigma_4: *commitments.get("SIGMA_4")?,
+            table_1: *commitments.get("TABLE_1")?,
+            table_2: *commitments.get("TABLE_2")?,
+            table_3: *commitments.get("TABLE_3")?,
+            table_4: *commitments.get("TABLE_4")?,
+            table_type: *commitments.get("TABLE_TYPE")?,
+            id_1: *commitments.get("ID_1")?,
+            id_2: *commitments.get("ID_2")?,
+            id_3: *commitments.get("ID_3")?,
+            id_4: *commitments.get("ID_4")?,
+        })
+    }
 }
 
 // Expected sizes in bytes for proof.
@@ -84,6 +146,8 @@ pub const PROOF_SIZE: usize = 2144;
 
 // Expected sizes in bytes for verification key.
 pub const VK_SIZE: usize = 1719;
+
+pub type PublicInput = [u8; 32];
 
 /// Serializes a slice of bytes into a `Vec<u8>` with the first 4 bytes representing the length of the data slice in big-endian format, followed by the data itself.
 ///
@@ -268,27 +332,24 @@ pub fn verifier_init() -> Result<AcirComposer, AcirComposerError> {
 ///
 /// This function assumes that `VK_SIZE` and `PROOF_SIZE` are predefined constants that specify
 /// the expected sizes of the verification key and proof, respectively.
-pub fn verify(vk_data: Vec<u8>, proof: Vec<u8>, pubs: Vec<u8>) -> Result<bool, AcirComposerError> {
-    if vk_data.len() != VK_SIZE {
-        return Err(AcirComposerError::VerifierKeyPartError(
-            "Verification key length is not 1719 bytes".to_string(),
-        ));
-    }
-
+pub fn verify(
+    vk_data: Vec<u8>,
+    proof: Vec<u8>,
+    pubs: Vec<PublicInput>,
+) -> Result<bool, AcirComposerError> {
     if proof.len() != PROOF_SIZE {
         return Err(AcirComposerError::InvalidProofError(
             "Proof length is not 2144 bytes".to_string(),
         ));
     }
 
-    if pubs.len() % 32 != 0 {
-        return Err(AcirComposerError::PublicInputError(
-            "Public input length is not a multiple of 32".to_string(),
-        ));
-    }
-
-    let vk_part = deserialize_vk_part(&vk_data)?;
-    if vk_part.num_public_inputs != pubs.len() as u32 / 32 {
+    let vk_part = VerifierKey::deserialize(&vk_data).map_err(|e| {
+        AcirComposerError::VerifierKeyPartError(format!(
+            "Failed to deserialize verification key: {}",
+            e
+        ))
+    })?;
+    if vk_part.num_public_inputs != pubs.len() {
         return Err(AcirComposerError::PublicInputError(
             "Public input length does not match the verification key".to_string(),
         ));
@@ -300,47 +361,16 @@ pub fn verify(vk_data: Vec<u8>, proof: Vec<u8>, pubs: Vec<u8>) -> Result<bool, A
         ));
     }
 
-    let proof_data = [pubs.as_slice(), &proof].concat();
+    let mut proof_data = Vec::new();
+    for pub_input in pubs.iter() {
+        proof_data.extend_from_slice(pub_input);
+    }
+    proof_data.extend_from_slice(&proof);
+
     let acir_composer = verifier_init()?;
     acir_composer.load_verification_key(&vk_data)?;
     let verified = acir_composer.verify_proof(&proof_data)?;
     Ok(verified)
-}
-
-/// Deserializes a byte slice into a `VerificationKeyPart` struct.
-/// The byte slice is expected to contain the serialized data of the verification key.
-///
-/// # Arguments
-///
-/// * `buffer` - A byte slice containing the serialized data of the verification key.
-///
-/// # Returns
-///
-/// A `Result<VerificationKeyPart, AcirComposerError>` where:
-/// - `Ok(VerificationKeyPart)` contains the deserialized verification key part.
-/// - `Err(AcirComposerError)` indicates an error occurred during deserialization.
-fn deserialize_vk_part(buffer: &[u8]) -> Result<VerificationKeyPart, AcirComposerError> {
-    if buffer.len() < std::mem::size_of::<VerificationKeyPart>() {
-        return Err(AcirComposerError::VerifierKeyPartError(
-            "Buffer length is not sufficient".to_string(),
-        ));
-    }
-
-    // Read the circuit_type (u32)
-    let circuit_type = to_u32(&buffer[0..4]);
-    let circuit_size = to_u32(&buffer[4..8]);
-    let num_public_inputs = to_u32(&buffer[8..12]);
-    let q_1 = Commitment {
-        x: buffer[12..44].try_into().unwrap(),
-        y: buffer[44..76].try_into().unwrap(),
-    };
-
-    Ok(VerificationKeyPart {
-        circuit_type,
-        circuit_size,
-        num_public_inputs,
-        q_1,
-    })
 }
 
 /// Converts a byte slice to a u32 value.
@@ -375,6 +405,6 @@ mod test {
         let proof = proof_data[64..].to_vec();
 
         let verified = verify(vk_data, proof, pub_inputs).unwrap();
-        assert!(verified,);
+        assert!(verified);
     }
 }
