@@ -19,7 +19,6 @@
 #![allow(non_snake_case)]
 
 use std::collections::HashMap;
-use std::convert::TryInto;
 
 mod acir;
 
@@ -41,6 +40,7 @@ pub enum BackendError {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 struct Commitment {
     x: [u8; 32],
     y: [u8; 32],
@@ -48,10 +48,10 @@ struct Commitment {
 
 /// Simplified representation of a verification key for cryptographic verification processes.
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 struct VerifierKey {
-    circuit_type: u32, // Type of circuit
-    #[allow(dead_code)]
-    circuit_size: u32, // Size of the circuit, not used in verification
+    circuit_type: u32,      // Type of circuit
+    circuit_size: u32,      // Size of the circuit, not used in verification
     num_public_inputs: u32, // Expected number of public inputs
 
     q_1: Commitment,
@@ -84,19 +84,19 @@ struct VerifierKey {
 
 impl VerifierKey {
     fn deserialize(buffer: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
-        let circuit_type = u32::from_le_bytes(buffer[0..4].try_into()?);
-        let circuit_size = u32::from_le_bytes(buffer[4..8].try_into()?);
-        let num_public_inputs = u32::from_le_bytes(buffer[8..12].try_into()?);
+        let circuit_type = to_u32(buffer[0..4].try_into()?);
+        let circuit_size = to_u32(buffer[4..8].try_into()?);
+        let num_public_inputs = to_u32(buffer[8..12].try_into()?);
 
-        let mut commitments_num = u32::from_le_bytes(buffer[12..16].try_into()?) as usize;
+        let mut commitments_num = to_u32(buffer[12..16].try_into()?) as usize;
         let mut commitments = HashMap::new();
         let mut i = 16;
         while i < buffer.len() && commitments_num > 0 {
-            let key_size = u32::from_le_bytes(buffer[i..i + 4].try_into()?) as usize;
+            let key_size = to_u32(buffer[i..i + 4].try_into()?) as usize;
             i += 4;
             let key = &buffer[i..i + key_size];
             i += key_size;
-            let key = String::from_utf8(key)?;
+            let key = String::from_utf8(key.to_vec())?;
             let value = Commitment {
                 x: buffer[i..i + 32].try_into()?,
                 y: buffer[i + 32..i + 64].try_into()?,
@@ -114,29 +114,31 @@ impl VerifierKey {
             circuit_type,
             circuit_size,
             num_public_inputs,
-            q_1: *commitments.get("Q_1")?,
-            q_2: *commitments.get("Q_2")?,
-            q_3: *commitments.get("Q_3")?,
-            q_4: *commitments.get("Q_4")?,
-            q_m: *commitments.get("Q_M")?,
-            q_c: *commitments.get("Q_C")?,
-            q_arith: *commitments.get("Q_ARITH")?,
-            q_sort: *commitments.get("Q_SORT")?,
-            q_eliptic: *commitments.get("Q_ELIPTIC")?,
-            q_aux: *commitments.get("Q_AUX")?,
-            sigma_1: *commitments.get("SIGMA_1")?,
-            sigma_2: *commitments.get("SIGMA_2")?,
-            sigma_3: *commitments.get("SIGMA_3")?,
-            sigma_4: *commitments.get("SIGMA_4")?,
-            table_1: *commitments.get("TABLE_1")?,
-            table_2: *commitments.get("TABLE_2")?,
-            table_3: *commitments.get("TABLE_3")?,
-            table_4: *commitments.get("TABLE_4")?,
-            table_type: *commitments.get("TABLE_TYPE")?,
-            id_1: *commitments.get("ID_1")?,
-            id_2: *commitments.get("ID_2")?,
-            id_3: *commitments.get("ID_3")?,
-            id_4: *commitments.get("ID_4")?,
+            q_1: *commitments.get("Q_1").ok_or("Missing Q_1")?,
+            q_2: *commitments.get("Q_2").ok_or("Missing Q_2")?,
+            q_3: *commitments.get("Q_3").ok_or("Missing Q_3")?,
+            q_4: *commitments.get("Q_4").ok_or("Missing Q_4")?,
+            q_m: *commitments.get("Q_M").ok_or("Missing Q_M")?,
+            q_c: *commitments.get("Q_C").ok_or("Missing Q_C")?,
+            q_arith: *commitments
+                .get("Q_ARITHMETIC")
+                .ok_or("Missing Q_ARITHMETIC")?,
+            q_sort: *commitments.get("Q_SORT").ok_or("Missing Q_SORT")?,
+            q_eliptic: *commitments.get("Q_ELLIPTIC").ok_or("Missing Q_ELLIPTIC")?,
+            q_aux: *commitments.get("Q_AUX").ok_or("Missing Q_AUX")?,
+            sigma_1: *commitments.get("SIGMA_1").ok_or("Missing SIGMA_1")?,
+            sigma_2: *commitments.get("SIGMA_2").ok_or("Missing SIGMA_2")?,
+            sigma_3: *commitments.get("SIGMA_3").ok_or("Missing SIGMA_3")?,
+            sigma_4: *commitments.get("SIGMA_4").ok_or("Missing SIGMA_4")?,
+            table_1: *commitments.get("TABLE_1").ok_or("Missing TABLE_1")?,
+            table_2: *commitments.get("TABLE_2").ok_or("Missing TABLE_2")?,
+            table_3: *commitments.get("TABLE_3").ok_or("Missing TABLE_3")?,
+            table_4: *commitments.get("TABLE_4").ok_or("Missing TABLE_4")?,
+            table_type: *commitments.get("TABLE_TYPE").ok_or("Missing TABLE_TYPE")?,
+            id_1: *commitments.get("ID_1").ok_or("Missing ID_1")?,
+            id_2: *commitments.get("ID_2").ok_or("Missing ID_2")?,
+            id_3: *commitments.get("ID_3").ok_or("Missing ID_3")?,
+            id_4: *commitments.get("ID_4").ok_or("Missing ID_4")?,
         })
     }
 }
@@ -349,7 +351,7 @@ pub fn verify(
             e
         ))
     })?;
-    if vk_part.num_public_inputs != pubs.len() {
+    if vk_part.num_public_inputs != pubs.len() as u32 {
         return Err(AcirComposerError::PublicInputError(
             "Public input length does not match the verification key".to_string(),
         ));
@@ -400,8 +402,14 @@ mod test {
     fn test_verify() {
         let vk_data = fs::read("resources/proves/vk").unwrap();
         let proof_data = fs::read("resources/proves/proof").unwrap();
+        let pub_inputs: Vec<PublicInput> = (0..2)
+            .map(|i| {
+                let mut arr = [0u8; 32];
+                arr.copy_from_slice(&proof_data[i * 32..(i + 1) * 32]);
+                arr
+            })
+            .collect();
 
-        let pub_inputs = proof_data[..64].to_vec();
         let proof = proof_data[64..].to_vec();
 
         let verified = verify(vk_data, proof, pub_inputs).unwrap();
