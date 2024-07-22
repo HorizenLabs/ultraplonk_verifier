@@ -98,13 +98,7 @@ fn file_is_up_to_date(src: &PathBuf, dest: &PathBuf) -> Result<bool, Box<dyn std
     if !dest.exists() {
         return Ok(false);
     }
-    let src_metadata = fs::metadata(src)?;
-    let dest_metadata = fs::metadata(dest)?;
-
-    let src_modified = src_metadata.modified()?;
-    let dest_modified = dest_metadata.modified()?;
-
-    Ok(src_modified <= dest_modified)
+    Ok(true)
 }
 
 fn generate_bindings(include_path: &PathBuf) {
