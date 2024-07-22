@@ -18,44 +18,47 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-fn main() {
-    // Notify Cargo to rerun this build script if `build.rs` changes.
-    println!("cargo:rerun-if-changed=build.rs");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Set up paths
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
+    let lib_path = manifest_dir.join("barretenberg/cpp");
+    let assets_path = manifest_dir.join("resources/code");
+    let acir_proofs_path = lib_path.join("src/barretenberg/dsl/acir_proofs");
 
-    let lib_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("barretenberg/cpp");
+    // Ensure barretenberg submodule is available
     if !lib_path.exists() {
         eprintln!("The barretenberg submodule is missing. Please run `git submodule update --init --recursive`.");
-        // Fetch the submodule
-        let _ = Command::new("git")
-            .args(&["submodule", "update", "--recursive"])
+        Command::new("git")
+            .args(&["submodule", "update", "--init", "--recursive"])
             .status()
             .expect("Failed to fetch submodules");
     }
 
-    // Barretenberg functions throw exceptions on error, so we need to catch them.
-    // copy files from assets/code/ to barretenberg/cpp/src/barretenberg/dsl/acir_proofs/
-    // TODO: find better way to handle exceptions
-    let assets_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("resources/code");
-    let acir_proofs_path = lib_path.join("src/barretenberg/dsl/acir_proofs");
-    for entry in fs::read_dir(&assets_path).unwrap() {
-        let entry = entry.unwrap();
+    // Copy files from assets/code to barretenberg/cpp/src/barretenberg/dsl/acir_proofs
+    for entry in fs::read_dir(&assets_path)? {
+        let entry = entry?;
         let path = entry.path();
-        let file_name = path.file_name().unwrap();
-        let dest_path = acir_proofs_path.join(file_name);
-        fs::copy(&path, &dest_path).unwrap();
+        let dest_path = acir_proofs_path.join(path.file_name().unwrap());
+
+        if !file_is_up_to_date(&path, &dest_path)? {
+            fs::copy(&path, &dest_path)?;
+            println!("Copied {} to {}", path.display(), dest_path.display());
+        }
+        println!("cargo:rerun-if-changed={}", path.display());
     }
 
     // Notify Cargo to rerun if any C++ source files change.
-    for entry in fs::read_dir(&lib_path).unwrap() {
-        let entry = entry.unwrap();
+    for entry in fs::read_dir(&lib_path)? {
+        let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("cpp")
-            || path.extension().and_then(|s| s.to_str()) == Some("hpp")
-        {
-            println!("cargo:rerun-if-changed={}", path.display());
+        if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+            if ext == "cpp" || ext == "hpp" {
+                println!("cargo:rerun-if-changed={}", path.display());
+            }
         }
     }
 
+    // Rerun build script if VERBOSE environment variable changes
     println!("cargo:rerun-if-env-changed=VERBOSE");
     if env::var("VERBOSE").is_ok() {
         std::env::set_var("CARGO_BUILD_RUSTFLAGS", "-vv");
@@ -67,7 +70,7 @@ fn main() {
         _ => "Debug",
     };
 
-    // Build using the cmake crate. native-lib is the name of the CMake project.
+    // Build using the cmake crate
     let dst = cmake::Config::new(&lib_path)
         .configure_arg(format!("-DCMAKE_BUILD_TYPE={}", build_type))
         .configure_arg("-DMULTITHREADING=OFF")
@@ -75,11 +78,10 @@ fn main() {
         .very_verbose(true)
         .build();
 
+    // Link the C++ standard library and custom libraries
     println!("cargo:rustc-link-search=native={}/build/lib", dst.display());
     println!("cargo:rustc-link-lib=static=barretenberg");
     println!("cargo:rustc-link-lib=static=env");
-
-    // Link the C++ standard library.
     if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
         println!("cargo:rustc-link-lib=c++");
     } else {
@@ -88,6 +90,21 @@ fn main() {
 
     // Generate Rust bindings for the C++ headers
     generate_bindings(&lib_path.join("src"));
+
+    Ok(())
+}
+
+fn file_is_up_to_date(src: &PathBuf, dest: &PathBuf) -> Result<bool, Box<dyn std::error::Error>> {
+    if !dest.exists() {
+        return Ok(false);
+    }
+    let src_metadata = fs::metadata(src)?;
+    let dest_metadata = fs::metadata(dest)?;
+
+    let src_modified = src_metadata.modified()?;
+    let dest_modified = dest_metadata.modified()?;
+
+    Ok(src_modified <= dest_modified)
 }
 
 fn generate_bindings(include_path: &PathBuf) {
