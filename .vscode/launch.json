@@ -63,6 +63,16 @@
                 "contract",
             ],
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "(lldb) write vk as fields",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/barretenberg/cpp/build/bin/bb",
+            "args": [
+                "vk_as_fields",
+            ],
+            "cwd": "${workspaceFolder}",
         }
     ]
 }

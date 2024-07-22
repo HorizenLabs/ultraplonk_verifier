@@ -37,13 +37,46 @@ pub enum BackendError {
     BindingCallPointerError(String),
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Commitment {
+    x: [u8; 32],
+    y: [u8; 32],
+}
+
 /// Simplified representation of a verification key for cryptographic verification processes.
 #[derive(Debug, Copy, Clone)]
 struct VerificationKeyPart {
     circuit_type: u32, // Type of circuit
     #[allow(dead_code)]
     circuit_size: u32, // Size of the circuit, not used in verification
-    pub_input_size: u32, // Expected number of public inputs
+    num_public_inputs: u32, // Expected number of public inputs
+
+    q_1: Commitment,
+    // q_2: Commitment,
+    // q_3: Commitment,
+    // q_4: Commitment,
+    // q_m: Commitment,
+    // q_c: Commitment,
+    // q_arith: Commitment,
+    // q_sort: Commitment,
+    // q_eliptic: Commitment,
+    // q_aux: Commitment,
+
+    // sigma_1: Commitment,
+    // sigma_2: Commitment,
+    // sigma_3: Commitment,
+    // sigma_4: Commitment,
+
+    // table_1: Commitment,
+    // table_2: Commitment,
+    // table_3: Commitment,
+    // table_4: Commitment,
+    // table_type: Commitment,
+
+    // id_1: Commitment,
+    // id_2: Commitment,
+    // id_3: Commitment,
+    // id_4: Commitment,
 }
 
 // Expected sizes in bytes for proof.
@@ -66,7 +99,7 @@ pub const VK_SIZE: usize = 1719;
 ///
 /// ```
 /// use ultraplonk_verifier::serialize_slice;
-/// 
+///
 /// let data = [1, 2, 3, 4];
 /// let serialized = serialize_slice(&data);
 /// assert_eq!(serialized, vec![0, 0, 0, 4, 1, 2, 3, 4]);
@@ -219,7 +252,7 @@ pub fn verifier_init() -> Result<AcirComposer, AcirComposerError> {
 ///
 /// ```compile_fail
 /// use ultraplonk_verifier::verify;
-/// 
+///
 /// let vk_data = vec![...]; // Verification key data
 /// let proof = vec![...]; // Proof to be verified
 /// let pubs = vec![...]; // Public inputs
@@ -255,7 +288,7 @@ pub fn verify(vk_data: Vec<u8>, proof: Vec<u8>, pubs: Vec<u8>) -> Result<bool, A
     }
 
     let vk_part = deserialize_vk_part(&vk_data)?;
-    if vk_part.pub_input_size != pubs.len() as u32 / 32 {
+    if vk_part.num_public_inputs != pubs.len() as u32 / 32 {
         return Err(AcirComposerError::PublicInputError(
             "Public input length does not match the verification key".to_string(),
         ));
@@ -296,12 +329,17 @@ fn deserialize_vk_part(buffer: &[u8]) -> Result<VerificationKeyPart, AcirCompose
     // Read the circuit_type (u32)
     let circuit_type = to_u32(&buffer[0..4]);
     let circuit_size = to_u32(&buffer[4..8]);
-    let pub_input_size = to_u32(&buffer[8..12]);
+    let num_public_inputs = to_u32(&buffer[8..12]);
+    let q_1 = Commitment {
+        x: buffer[12..44].try_into().unwrap(),
+        y: buffer[44..76].try_into().unwrap(),
+    };
 
     Ok(VerificationKeyPart {
         circuit_type,
         circuit_size,
-        pub_input_size,
+        num_public_inputs,
+        q_1,
     })
 }
 
@@ -319,4 +357,24 @@ fn to_u32(buffer: &[u8]) -> u32 {
         | ((buffer[1] as u32) << 16)
         | ((buffer[2] as u32) << 8)
         | (buffer[3] as u32)
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+
+    use std::fs;
+
+    #[test]
+    fn test_verify() {
+        let vk_data = fs::read("resources/proves/vk").unwrap();
+        let proof_data = fs::read("resources/proves/proof").unwrap();
+
+        let pub_inputs = proof_data[..64].to_vec();
+        let proof = proof_data[64..].to_vec();
+
+        let verified = verify(vk_data, proof, pub_inputs).unwrap();
+        assert!(verified,);
+    }
 }
