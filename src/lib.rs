@@ -80,34 +80,89 @@ struct VerifierKey {
     id_2: Commitment,
     id_3: Commitment,
     id_4: Commitment,
+
+    contains_recursive_proof: bool,
+    recursive_proof_public_inputs_size: u32,
+    is_recursive_circuit: bool,
 }
 
 impl VerifierKey {
-    fn deserialize(buffer: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
-        let circuit_type = to_u32(buffer[0..4].try_into()?);
-        let circuit_size = to_u32(buffer[4..8].try_into()?);
-        let num_public_inputs = to_u32(buffer[8..12].try_into()?);
+    /// Converts a byte slice to a u32 value.
+    ///
+    /// # Arguments
+    ///
+    /// * `buffer` - A byte slice containing the data to be converted.
+    ///
+    /// # Returns
+    ///
+    /// A u32 value obtained by converting the byte slice.
+    fn to_u32(buffer: &[u8]) -> u32 {
+        ((buffer[0] as u32) << 24)
+            | ((buffer[1] as u32) << 16)
+            | ((buffer[2] as u32) << 8)
+            | (buffer[3] as u32)
+    }
 
-        let mut commitments_num = to_u32(buffer[12..16].try_into()?) as usize;
+    /// The `deserialize` function is part of the implementation of the `VerifierKey` struct. It is designed to deserialize a slice of bytes into an instance of `VerifierKey`.
+    ///
+    /// # Arguments:
+    /// 
+    /// * `buffer`: A slice of bytes representing the serialized form of `VerifierKey`.
+    ///
+    /// # Returns:
+    /// * A `Result<Self, Box<dyn std::error::Error>>` which is either:
+    /// * `Ok(Self)` where `Self` is an instance of `VerifierKey`, if the deserialization is successful.
+    /// * `Err(Box<dyn std::error::Error>)` if an error occurs during the deserialization process. The error is boxed to allow for any error type that implements the `std::error::Error` trait, providing flexibility in error handling.
+    ///
+    /// This function is crucial for reconstructing a `VerifierKey` instance from its serialized form, typically used in scenarios where keys need to be stored or transmitted in a compact, byte-represented format. The exact deserialization logic will depend on the internal structure of `VerifierKey` and how it was serialized into the `buffer`.
+    fn deserialize(buffer: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+        let circuit_type = Self::to_u32(&buffer[0..4]);
+        if circuit_type != 2 {
+            return Err("Verification key circuit type is not ULTRA-PLONK".into());
+        }
+
+        let circuit_size = Self::to_u32(&buffer[4..8]);
+        let num_public_inputs = Self::to_u32(&buffer[8..12]);
+        let mut commitments_num = Self::to_u32(&buffer[12..16]) as usize;
+
         let mut commitments = HashMap::new();
         let mut i = 16;
         while i < buffer.len() && commitments_num > 0 {
-            let key_size = to_u32(buffer[i..i + 4].try_into()?) as usize;
+            let key_size = Self::to_u32(&buffer[i..i + 4]) as usize;
             i += 4;
-            let key = &buffer[i..i + key_size];
+            let key = String::from_utf8(buffer[i..i + key_size].to_vec())?;
             i += key_size;
-            let key = String::from_utf8(key.to_vec())?;
-            let value = Commitment {
-                x: buffer[i..i + 32].try_into()?,
-                y: buffer[i + 32..i + 64].try_into()?,
-            };
+            let x = buffer[i..i + 32].try_into()?;
+            let y = buffer[i + 32..i + 64].try_into()?;
             i += 64;
-            commitments.insert(key, value);
+            commitments.insert(key, Commitment { x, y });
             commitments_num -= 1;
         }
 
         if commitments_num != 0 {
             return Err("Failed to deserialize commitments".into());
+        }
+
+        let contains_recursive_proof = buffer[i] == 1;
+        i += 1;
+        if contains_recursive_proof {
+            return Err("Recursive proof is not supported".into());
+        }
+
+        let recursive_proof_public_inputs_size = Self::to_u32(&buffer[i..i + 4]);
+        i += 4;
+        if recursive_proof_public_inputs_size != 0 {
+            return Err("Recursive proof public inputs are not supported".into());
+        }
+        let is_recursive_circuit = buffer[i] == 1;
+        i += 1;
+
+        if is_recursive_circuit {
+            return Err("Recursive circuit is not supported".into());
+        }
+
+        if i != buffer.len() {
+            return Err("Failed to deserialize verification key".into());
         }
 
         Ok(Self {
@@ -139,6 +194,9 @@ impl VerifierKey {
             id_2: *commitments.get("ID_2").ok_or("Missing ID_2")?,
             id_3: *commitments.get("ID_3").ok_or("Missing ID_3")?,
             id_4: *commitments.get("ID_4").ok_or("Missing ID_4")?,
+            contains_recursive_proof,
+            recursive_proof_public_inputs_size,
+            is_recursive_circuit,
         })
     }
 }
@@ -340,26 +398,19 @@ pub fn verify(
     pubs: Vec<PublicInput>,
 ) -> Result<bool, AcirComposerError> {
     if proof.len() != PROOF_SIZE {
-        return Err(AcirComposerError::InvalidProofError(
-            "Proof length is not 2144 bytes".to_string(),
-        ));
+        return Err(AcirComposerError::InvalidProofError(format!(
+            "Proof length is not {PROOF_SIZE} bytes"
+        )));
     }
 
     let vk_part = VerifierKey::deserialize(&vk_data).map_err(|e| {
         AcirComposerError::VerifierKeyPartError(format!(
-            "Failed to deserialize verification key: {}",
-            e
+            "Failed to deserialize verification key: {e}",
         ))
     })?;
     if vk_part.num_public_inputs != pubs.len() as u32 {
         return Err(AcirComposerError::PublicInputError(
             "Public input length does not match the verification key".to_string(),
-        ));
-    }
-    // ULTRA-PLONK circuit type is 2
-    if vk_part.circuit_type != 2 {
-        return Err(AcirComposerError::VerifierKeyPartError(
-            "Verification key circuit type is not ULTRA-PLONK".to_string(),
         ));
     }
 
@@ -373,22 +424,6 @@ pub fn verify(
     acir_composer.load_verification_key(&vk_data)?;
     let verified = acir_composer.verify_proof(&proof_data)?;
     Ok(verified)
-}
-
-/// Converts a byte slice to a u32 value.
-///
-/// # Arguments
-///
-/// * `buffer` - A byte slice containing the data to be converted.
-///
-/// # Returns
-///
-/// A u32 value obtained by converting the byte slice.
-fn to_u32(buffer: &[u8]) -> u32 {
-    ((buffer[0] as u32) << 24)
-        | ((buffer[1] as u32) << 16)
-        | ((buffer[2] as u32) << 8)
-        | (buffer[3] as u32)
 }
 
 #[cfg(test)]
@@ -411,8 +446,6 @@ mod test {
             .collect();
 
         let proof = proof_data[64..].to_vec();
-
-        let verified = verify(vk_data, proof, pub_inputs).unwrap();
-        assert!(verified);
+        assert!(verify(vk_data, proof, pub_inputs).unwrap());
     }
 }
