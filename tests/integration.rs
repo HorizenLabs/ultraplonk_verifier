@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use serial_test::serial;
-use ultraplonk_verifier::{verify, AcirComposerError};
+use ultraplonk_verifier::{verify, AcirComposerError, PublicInput};
 
 static PROOF: [u8; 2144] = hex_literal::hex!(
     "
@@ -147,33 +147,35 @@ static VK: [u8; 1719] = hex_literal::hex!(
     "
 );
 
-static PUBS: [u8; 64] = hex_literal::hex!(
-    "
-        0000000000000000000000000000000000000000000000000000000000000002
-        0000000000000000000000000000000000000000000000000000000000000003
-    "
-);
+fn public_inputs() -> Vec<PublicInput> {
+    vec![
+        hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000002"),
+        hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000003"),
+    ]
+}
 
 #[test]
 #[serial]
 fn should_verify_proof() {
-    let verified = verify(VK.to_vec(), PROOF.to_vec(), PUBS.to_vec()).unwrap();
+    let verified = verify(VK.to_vec(), PROOF.to_vec(), public_inputs()).unwrap();
     assert!(verified);
 }
 
 #[test]
 #[serial]
 fn test_verify_invalid_pub_input() {
-    let mut pub_input = PUBS.to_vec();
-    pub_input[0] = 1;
-    let verified = verify(VK.to_vec(), PROOF.to_vec(), pub_input).unwrap();
+    let mut pub_inputs = public_inputs();
+    pub_inputs[0][0] = 1;
+    let verified = verify(VK.to_vec(), PROOF.to_vec(), pub_inputs).unwrap();
     assert!(!verified);
 }
 
 #[test]
 #[serial]
 fn test_verify_invalid_pub_input_length() {
-    match verify(VK.to_vec(), PROOF.to_vec(), PUBS[..32].to_vec()) {
+    let mut pub_inputs = public_inputs();
+    pub_inputs.remove(0);
+    match verify(VK.to_vec(), PROOF.to_vec(), pub_inputs) {
         Ok(_) => panic!("Verification should have failed"),
         Err(e) => match e {
             AcirComposerError::PublicInputError(_) => {}
@@ -187,7 +189,7 @@ fn test_verify_invalid_pub_input_length() {
 fn test_verify_invalid_proof() {
     let mut proof = PROOF.to_vec();
     proof[138] = 1;
-    match verify(VK.to_vec(), proof, PUBS.to_vec()) {
+    match verify(VK.to_vec(), proof, public_inputs()) {
         // TODO: We have a very ambiguos situation here, if the EC proof points are on the curve but do not satisfy the constraints
         // the result is Ok(false) but if the proof EC points are not on the curve the result is Err(BackendError)
         // Currently we are taking the easiest way to handle this situation, but we need to improve it
@@ -205,7 +207,7 @@ fn test_verify_invalid_vk() {
     let mut vk = VK.to_vec();
     // Modify the proof to make it invalid
     vk[138] = 1;
-    match verify(vk, PROOF.to_vec(), PUBS.to_vec()) {
+    match verify(vk, PROOF.to_vec(), public_inputs()) {
         // TODO: We have a very ambiguos situation here, if the EC proof points are on the curve but do not satisfy the constraints
         // the result is Ok(false) but if the proof EC points are not on the curve the result is Err(BackendError)
         // Currently we are taking the easiest way to handle this situation, but we need to improve it

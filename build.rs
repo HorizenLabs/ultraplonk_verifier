@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = entry.path();
         let dest_path = acir_proofs_path.join(path.file_name().unwrap());
 
-        if !file_is_up_to_date(&path, &dest_path)? {
+        if !dest_path.exists() {
             fs::copy(&path, &dest_path)?;
             println!("Copied {} to {}", path.display(), dest_path.display());
         }
@@ -92,13 +92,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     generate_bindings(&lib_path.join("src"));
 
     Ok(())
-}
-
-fn file_is_up_to_date(src: &PathBuf, dest: &PathBuf) -> Result<bool, Box<dyn std::error::Error>> {
-    if !dest.exists() {
-        return Ok(false);
-    }
-    Ok(true)
 }
 
 fn generate_bindings(include_path: &PathBuf) {
