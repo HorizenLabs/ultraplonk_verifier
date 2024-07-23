@@ -18,9 +18,13 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-use std::collections::HashMap;
-
 mod acir;
+mod key;
+
+/// The verification key.
+pub use key::VerificationKey;
+/// The verification key error.
+pub use key::VerificationKeyError;
 
 // This matches bindgen::Builder output
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
@@ -39,173 +43,8 @@ pub enum BackendError {
     BindingCallPointerError(String),
 }
 
-#[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
-struct Commitment {
-    x: [u8; 32],
-    y: [u8; 32],
-}
-
-/// Simplified representation of a verification key for cryptographic verification processes.
-#[derive(Debug, Copy, Clone)]
-#[allow(dead_code)]
-struct VerifierKey {
-    circuit_type: u32,      // Type of circuit
-    circuit_size: u32,      // Size of the circuit, not used in verification
-    num_public_inputs: u32, // Expected number of public inputs
-
-    q_1: Commitment,
-    q_2: Commitment,
-    q_3: Commitment,
-    q_4: Commitment,
-    q_m: Commitment,
-    q_c: Commitment,
-    q_arith: Commitment,
-    q_sort: Commitment,
-    q_eliptic: Commitment,
-    q_aux: Commitment,
-
-    sigma_1: Commitment,
-    sigma_2: Commitment,
-    sigma_3: Commitment,
-    sigma_4: Commitment,
-
-    table_1: Commitment,
-    table_2: Commitment,
-    table_3: Commitment,
-    table_4: Commitment,
-    table_type: Commitment,
-
-    id_1: Commitment,
-    id_2: Commitment,
-    id_3: Commitment,
-    id_4: Commitment,
-
-    contains_recursive_proof: bool,
-    recursive_proof_public_inputs_size: u32,
-    is_recursive_circuit: bool,
-}
-
-impl VerifierKey {
-    /// Converts a byte slice to a u32 value.
-    ///
-    /// # Arguments
-    ///
-    /// * `buffer` - A byte slice containing the data to be converted.
-    ///
-    /// # Returns
-    ///
-    /// A u32 value obtained by converting the byte slice.
-    fn to_u32(buffer: &[u8]) -> u32 {
-        ((buffer[0] as u32) << 24)
-            | ((buffer[1] as u32) << 16)
-            | ((buffer[2] as u32) << 8)
-            | (buffer[3] as u32)
-    }
-
-    /// The `deserialize` function is part of the implementation of the `VerifierKey` struct. It is designed to deserialize a slice of bytes into an instance of `VerifierKey`.
-    ///
-    /// # Arguments:
-    /// 
-    /// * `buffer`: A slice of bytes representing the serialized form of `VerifierKey`.
-    ///
-    /// # Returns:
-    /// * A `Result<Self, Box<dyn std::error::Error>>` which is either:
-    /// * `Ok(Self)` where `Self` is an instance of `VerifierKey`, if the deserialization is successful.
-    /// * `Err(Box<dyn std::error::Error>)` if an error occurs during the deserialization process. The error is boxed to allow for any error type that implements the `std::error::Error` trait, providing flexibility in error handling.
-    ///
-    /// This function is crucial for reconstructing a `VerifierKey` instance from its serialized form, typically used in scenarios where keys need to be stored or transmitted in a compact, byte-represented format. The exact deserialization logic will depend on the internal structure of `VerifierKey` and how it was serialized into the `buffer`.
-    fn deserialize(buffer: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
-        let circuit_type = Self::to_u32(&buffer[0..4]);
-        if circuit_type != 2 {
-            return Err("Verification key circuit type is not ULTRA-PLONK".into());
-        }
-
-        let circuit_size = Self::to_u32(&buffer[4..8]);
-        let num_public_inputs = Self::to_u32(&buffer[8..12]);
-        let mut commitments_num = Self::to_u32(&buffer[12..16]) as usize;
-
-        let mut commitments = HashMap::new();
-        let mut i = 16;
-        while i < buffer.len() && commitments_num > 0 {
-            let key_size = Self::to_u32(&buffer[i..i + 4]) as usize;
-            i += 4;
-            let key = String::from_utf8(buffer[i..i + key_size].to_vec())?;
-            i += key_size;
-            let x = buffer[i..i + 32].try_into()?;
-            let y = buffer[i + 32..i + 64].try_into()?;
-            i += 64;
-            commitments.insert(key, Commitment { x, y });
-            commitments_num -= 1;
-        }
-
-        if commitments_num != 0 {
-            return Err("Failed to deserialize commitments".into());
-        }
-
-        let contains_recursive_proof = buffer[i] == 1;
-        i += 1;
-        if contains_recursive_proof {
-            return Err("Recursive proof is not supported".into());
-        }
-
-        let recursive_proof_public_inputs_size = Self::to_u32(&buffer[i..i + 4]);
-        i += 4;
-        if recursive_proof_public_inputs_size != 0 {
-            return Err("Recursive proof public inputs are not supported".into());
-        }
-        let is_recursive_circuit = buffer[i] == 1;
-        i += 1;
-
-        if is_recursive_circuit {
-            return Err("Recursive circuit is not supported".into());
-        }
-
-        if i != buffer.len() {
-            return Err("Failed to deserialize verification key".into());
-        }
-
-        Ok(Self {
-            circuit_type,
-            circuit_size,
-            num_public_inputs,
-            q_1: *commitments.get("Q_1").ok_or("Missing Q_1")?,
-            q_2: *commitments.get("Q_2").ok_or("Missing Q_2")?,
-            q_3: *commitments.get("Q_3").ok_or("Missing Q_3")?,
-            q_4: *commitments.get("Q_4").ok_or("Missing Q_4")?,
-            q_m: *commitments.get("Q_M").ok_or("Missing Q_M")?,
-            q_c: *commitments.get("Q_C").ok_or("Missing Q_C")?,
-            q_arith: *commitments
-                .get("Q_ARITHMETIC")
-                .ok_or("Missing Q_ARITHMETIC")?,
-            q_sort: *commitments.get("Q_SORT").ok_or("Missing Q_SORT")?,
-            q_eliptic: *commitments.get("Q_ELLIPTIC").ok_or("Missing Q_ELLIPTIC")?,
-            q_aux: *commitments.get("Q_AUX").ok_or("Missing Q_AUX")?,
-            sigma_1: *commitments.get("SIGMA_1").ok_or("Missing SIGMA_1")?,
-            sigma_2: *commitments.get("SIGMA_2").ok_or("Missing SIGMA_2")?,
-            sigma_3: *commitments.get("SIGMA_3").ok_or("Missing SIGMA_3")?,
-            sigma_4: *commitments.get("SIGMA_4").ok_or("Missing SIGMA_4")?,
-            table_1: *commitments.get("TABLE_1").ok_or("Missing TABLE_1")?,
-            table_2: *commitments.get("TABLE_2").ok_or("Missing TABLE_2")?,
-            table_3: *commitments.get("TABLE_3").ok_or("Missing TABLE_3")?,
-            table_4: *commitments.get("TABLE_4").ok_or("Missing TABLE_4")?,
-            table_type: *commitments.get("TABLE_TYPE").ok_or("Missing TABLE_TYPE")?,
-            id_1: *commitments.get("ID_1").ok_or("Missing ID_1")?,
-            id_2: *commitments.get("ID_2").ok_or("Missing ID_2")?,
-            id_3: *commitments.get("ID_3").ok_or("Missing ID_3")?,
-            id_4: *commitments.get("ID_4").ok_or("Missing ID_4")?,
-            contains_recursive_proof,
-            recursive_proof_public_inputs_size,
-            is_recursive_circuit,
-        })
-    }
-}
-
 // Expected sizes in bytes for proof.
 pub const PROOF_SIZE: usize = 2144;
-
-// Expected sizes in bytes for verification key.
-pub const VK_SIZE: usize = 1719;
 
 pub type PublicInput = [u8; 32];
 
@@ -235,31 +74,21 @@ pub fn serialize_slice(data: &[u8]) -> Vec<u8> {
     buffer
 }
 
-/// Enumerates possible errors within the ACIR composer.
+/// Enum representing various errors that can occur during the verification process.
 ///
-/// This enum is leveraged for error handling across the ACIR composer, encapsulating various
-/// error types that can arise during the composition and verification processes.
+/// # Variants
 ///
-/// Variants:
-///
-/// - `BackendError`: Errors originating from the cryptographic backend. This includes issues
-///   encountered during cryptographic operations such as hashing, encryption, etc.
-///
-/// - `VerifierKeyPartError`: Errors related to the verification key, such as issues with its
-///   format, size, or content.
-///
-/// - `PublicInputError`: Errors associated with public inputs, including incorrect sizes or
-///   formats that do not match expectations.
-///
-/// - `InvalidProofError`: Errors indicating that a proof is invalid. This could be due to
-///   incorrect data, formatting, or failure to satisfy cryptographic verification.
+/// * `BackendError` - An error that occurs in the backend. This variant wraps a `BackendError`.
+/// * `VkError` - An error that occurs when handling the verification key. This variant contains a `VerificationKeyError`.
+/// * `PublicInputError` - An error that occurs when the public input length does not match the verification key's expected length. This variant contains a descriptive `String`.
+/// * `InvalidProofError` - An error that occurs when the proof length is invalid. This variant contains a descriptive `String`.
 #[derive(thiserror::Error, Debug)]
-pub enum AcirComposerError {
+pub enum VerifyError {
     #[error("BackendError")]
     BackendError(#[from] BackendError),
 
-    #[error("VerifierKeyPartError")]
-    VerifierKeyPartError(String),
+    #[error("VerificationKeyError")]
+    VkError(VerificationKeyError),
 
     #[error("PublicInputError")]
     PublicInputError(String),
@@ -283,7 +112,7 @@ impl AcirComposer {
     /// # Returns
     ///
     /// A result containing the new `AcirComposer` instance or an `AcirComposerError` on failure.
-    pub fn new(size_hint: &u32) -> Result<Self, AcirComposerError> {
+    pub fn new(size_hint: &u32) -> Result<Self, VerifyError> {
         Ok(acir::new_acir_composer(size_hint).map(|ptr| Self { composer_ptr: ptr })?)
     }
 
@@ -296,7 +125,7 @@ impl AcirComposer {
     /// # Returns
     ///
     /// A result indicating success or an `AcirComposerError` on failure.
-    pub fn load_verification_key(&self, vk: &[u8]) -> Result<(), AcirComposerError> {
+    pub fn load_verification_key(&self, vk: &[u8]) -> Result<(), VerifyError> {
         Ok(acir::load_verification_key(&self.composer_ptr, vk)?)
     }
 
@@ -309,7 +138,7 @@ impl AcirComposer {
     /// # Returns
     ///
     /// A result containing a boolean indicating the outcome of the verification or an `AcirComposerError` on failure.
-    pub fn verify_proof(&self, proof: &[u8]) -> Result<bool, AcirComposerError> {
+    pub fn verify_proof(&self, proof: &[u8]) -> Result<bool, VerifyError> {
         Ok(acir::verify_proof(&self.composer_ptr, proof)?)
     }
 }
@@ -333,83 +162,82 @@ const G2_DATA: &[u8; 128] = &[
     218, 106, 95, 228,
 ];
 
-/// Initializes the verifier by creating a new `AcirComposer` and setting up the SRS.
+/// Initializes the verifier by creating an `AcirComposer` instance and setting up the SRS (Structured Reference String).
 ///
 /// # Returns
 ///
-/// A result containing the `AcirComposer` or an `AcirComposerError` on failure.
-pub fn verifier_init() -> Result<AcirComposer, AcirComposerError> {
+/// This function returns a `Result<AcirComposer, VerifyError>`, which is:
+/// * `Ok(AcirComposer)` if the initialization is successful.
+/// * `Err(VerifyErrorr)` if an error occurs during the initialization process.
+pub fn verifier_init() -> Result<AcirComposer, VerifyError> {
     let acir_composer = AcirComposer::new(&0)?;
     acir::srs_init(&[], 0, G2_DATA)?;
     Ok(acir_composer)
 }
 
-/// Verifies a cryptographic proof against a set of public inputs and a verification key.
-///
-/// This function takes the verification key data (`vk_data`), the proof to be verified (`proof`),
-/// and the public inputs (`pubs`) as parameters. It performs several checks to ensure the integrity
-/// and correctness of the inputs before proceeding with the verification process.
+/// Verifies a cryptographic proof using a verification key and public inputs.
 ///
 /// # Arguments
 ///
-/// * `vk_data` - A `Vec<u8>` containing the serialized data of the verification key.
-/// * `proof` - A `Vec<u8>` containing the serialized proof to be verified.
-/// * `pubs` - A `Vec<u8>` containing the serialized public inputs.
+/// * `vk_data` - A vector of bytes representing the verification key.
+/// * `proof` - A vector of bytes representing the cryptographic proof.
+/// * `pubs` - A vector of `PublicInput` representing the public inputs for the proof.
 ///
 /// # Returns
 ///
-/// A `Result<bool, AcirComposerError>` where:
-/// - `Ok(true)` indicates that the proof is valid.
-/// - `Ok(false)` indicates that the proof is invalid.
-/// - `Err(AcirComposerError)` indicates that an error occurred during the verification process.
+/// This function returns a `Result<bool, VerifyError>`, which is:
+/// * `Ok(true)` if the proof is valid.
+/// * `Ok(false)` if the proof is invalid.
+/// * `Err(VerifyError)` if an error occurs during verification.
 ///
 /// # Errors
 ///
-/// This function can return an `AcirComposerError` in several cases, including:
-/// - If the length of the verification key data does not match the expected size (`VK_SIZE`).
-/// - If the length of the proof does not match the expected size (`PROOF_SIZE`).
-/// - If the length of the public inputs is not a multiple of 32 bytes.
-/// - If the public input size does not match the size specified in the verification key.
-/// - If the circuit type specified in the verification key is not ULTRA-PLONK.
+/// This function will return an error in the following cases:
+/// * `VerifyError::InvalidProofError` if the length of the proof is not equal to the expected `PROOF_SIZE`.
+/// * `VerifyError::VkError` if there is an error converting the verification key data to a `VerificationKey`.
+/// * `VerifyError::PublicInputError` if the length of the public inputs does not match the expected length specified by the verification key.
+/// * Any other error that occurs during the initialization of the verifier or the verification process.
 ///
 /// # Example
 ///
-/// ```compile_fail
+/// ```rust
 /// use ultraplonk_verifier::verify;
-///
-/// let vk_data = vec![...]; // Verification key data
-/// let proof = vec![...]; // Proof to be verified
-/// let pubs = vec![...]; // Public inputs
+/// 
+/// let vk_data = vec![/* verification key data */];
+/// let proof = vec![/* proof data */];
+/// let pubs = vec![/* public inputs */];
 ///
 /// match verify(vk_data, proof, pubs) {
-///     Ok(true) => println!("Proof is valid."),
-///     Ok(false) => println!("Proof is invalid."),
-///     Err(e) => println!("Verification error: {:?}", e),
+///     Ok(true) => println!("Proof is valid"),
+///     Ok(false) => println!("Proof is invalid"),
+///     Err(e) => println!("Verification failed with error: {:?}", e),
 /// }
 /// ```
 ///
-/// # Note
+/// # Implementation Details
 ///
-/// This function assumes that `VK_SIZE` and `PROOF_SIZE` are predefined constants that specify
-/// the expected sizes of the verification key and proof, respectively.
+/// The function performs the following steps:
+/// 1. Checks if the length of the proof matches the expected `PROOF_SIZE`.
+/// 2. Tries to convert the `vk_data` to a `VerificationKey`.
+/// 3. Checks if the number of public inputs matches the expected number specified in the verification key.
+/// 4. Concatenates the public inputs and the proof data into a single vector.
+/// 5. Initializes the ACIR composer and loads the verification key.
+/// 6. Uses the ACIR composer to verify the proof and returns the result.
 pub fn verify(
     vk_data: Vec<u8>,
     proof: Vec<u8>,
     pubs: Vec<PublicInput>,
-) -> Result<bool, AcirComposerError> {
+) -> Result<bool, VerifyError> {
     if proof.len() != PROOF_SIZE {
-        return Err(AcirComposerError::InvalidProofError(format!(
+        return Err(VerifyError::InvalidProofError(format!(
             "Proof length is not {PROOF_SIZE} bytes"
         )));
     }
 
-    let vk_part = VerifierKey::deserialize(&vk_data).map_err(|e| {
-        AcirComposerError::VerifierKeyPartError(format!(
-            "Failed to deserialize verification key: {e}",
-        ))
-    })?;
-    if vk_part.num_public_inputs != pubs.len() as u32 {
-        return Err(AcirComposerError::PublicInputError(
+    let vk = key::VerificationKey::try_from(&vk_data[..]).map_err(VerifyError::VkError)?;
+
+    if vk.num_public_inputs != pubs.len() as u32 {
+        return Err(VerifyError::PublicInputError(
             "Public input length does not match the verification key".to_string(),
         ));
     }
