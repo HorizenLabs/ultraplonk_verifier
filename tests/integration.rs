@@ -14,7 +14,8 @@
 // limitations under the License.
 
 use serial_test::serial;
-use ultraplonk_verifier::{verify, PublicInput, VerifyError};
+use substrate_bn::Fq;
+use ultraplonk_verifier::{verify, PublicInput, VerificationKey, VerifyError};
 
 static PROOF: [u8; 2144] = hex_literal::hex!(
     "
@@ -88,8 +89,9 @@ static PROOF: [u8; 2144] = hex_literal::hex!(
 "
 );
 
-static VK: [u8; 1719] = hex_literal::hex!(
-    "
+fn vk() -> VerificationKey {
+    let vk_data = hex_literal::hex!(
+        "
         000000020000001000000002000000170000000449445f31143131b30c289c43
         efe8c03ccfa57d38ea6d89d23ae31ce5714bc5daa86a768e0dc02c788ed33da5
         b66872ebf9585c8d7abc1201cd6aabd351107e383f93cd190000000449445f32
@@ -145,7 +147,9 @@ static VK: [u8; 1719] = hex_literal::hex!(
         057fe211dad1b706e49a3b55920fac20ec1e190987ebd9cf480f608b82134a00
         eb8007673c1ed10b834a695adf0068522a000000000000
     "
-);
+    );
+    VerificationKey::try_from(&vk_data[..]).unwrap()
+}
 
 fn public_inputs() -> Vec<PublicInput> {
     vec![
@@ -157,7 +161,7 @@ fn public_inputs() -> Vec<PublicInput> {
 #[test]
 #[serial]
 fn should_verify_proof() {
-    let verified = verify(VK.to_vec(), PROOF.to_vec(), public_inputs()).unwrap();
+    let verified = verify(&vk(), PROOF.to_vec(), public_inputs()).unwrap();
     assert!(verified);
 }
 
@@ -166,7 +170,7 @@ fn should_verify_proof() {
 fn test_verify_invalid_pub_input() {
     let mut pub_inputs = public_inputs();
     pub_inputs[0][0] = 1;
-    let verified = verify(VK.to_vec(), PROOF.to_vec(), pub_inputs).unwrap();
+    let verified = verify(&vk(), PROOF.to_vec(), pub_inputs).unwrap();
     assert!(!verified);
 }
 
@@ -175,7 +179,7 @@ fn test_verify_invalid_pub_input() {
 fn test_verify_invalid_pub_input_length() {
     let mut pub_inputs = public_inputs();
     pub_inputs.remove(0);
-    match verify(VK.to_vec(), PROOF.to_vec(), pub_inputs) {
+    match verify(&vk(), PROOF.to_vec(), pub_inputs) {
         Ok(_) => panic!("Verification should have failed"),
         Err(e) => match e {
             VerifyError::PublicInputError(_) => {}
@@ -189,7 +193,7 @@ fn test_verify_invalid_pub_input_length() {
 fn test_verify_invalid_proof() {
     let mut proof = PROOF.to_vec();
     proof[138] = 1;
-    match verify(VK.to_vec(), proof, public_inputs()) {
+    match verify(&vk(), proof, public_inputs()) {
         // TODO: We have a very ambiguos situation here, if the EC proof points are on the curve but do not satisfy the constraints
         // the result is Ok(false) but if the proof EC points are not on the curve the result is Err(BackendError)
         // Currently we are taking the easiest way to handle this situation, but we need to improve it
@@ -204,15 +208,15 @@ fn test_verify_invalid_proof() {
 #[test]
 #[serial]
 fn test_verify_invalid_vk() {
-    let mut vk = VK.to_vec();
-    // Modify the proof to make it invalid
-    vk[138] = 1;
-    match verify(vk, PROOF.to_vec(), public_inputs()) {
+    let mut vk = vk();
+    vk.q_1.set_x(Fq::zero());
+    match verify(&vk, PROOF.to_vec(), public_inputs()) {
         // TODO: We have a very ambiguos situation here, if the EC proof points are on the curve but do not satisfy the constraints
         // the result is Ok(false) but if the proof EC points are not on the curve the result is Err(BackendError)
         // Currently we are taking the easiest way to handle this situation, but we need to improve it
         Ok(_) => panic!("Verification should have failed"),
         Err(e) => match e {
+            VerifyError::BackendError(_) => {}
             VerifyError::VkError(_) => {}
             _ => panic!("Verification should have failed"),
         },

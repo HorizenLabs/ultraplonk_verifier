@@ -197,34 +197,8 @@ pub fn verifier_init() -> Result<AcirComposer, VerifyError> {
 /// * `VerifyError::VkError` if there is an error converting the verification key data to a `VerificationKey`.
 /// * `VerifyError::PublicInputError` if the length of the public inputs does not match the expected length specified by the verification key.
 /// * Any other error that occurs during the initialization of the verifier or the verification process.
-///
-/// # Example
-///
-/// ```rust
-/// use ultraplonk_verifier::verify;
-/// 
-/// let vk_data = vec![/* verification key data */];
-/// let proof = vec![/* proof data */];
-/// let pubs = vec![/* public inputs */];
-///
-/// match verify(vk_data, proof, pubs) {
-///     Ok(true) => println!("Proof is valid"),
-///     Ok(false) => println!("Proof is invalid"),
-///     Err(e) => println!("Verification failed with error: {:?}", e),
-/// }
-/// ```
-///
-/// # Implementation Details
-///
-/// The function performs the following steps:
-/// 1. Checks if the length of the proof matches the expected `PROOF_SIZE`.
-/// 2. Tries to convert the `vk_data` to a `VerificationKey`.
-/// 3. Checks if the number of public inputs matches the expected number specified in the verification key.
-/// 4. Concatenates the public inputs and the proof data into a single vector.
-/// 5. Initializes the ACIR composer and loads the verification key.
-/// 6. Uses the ACIR composer to verify the proof and returns the result.
 pub fn verify(
-    vk_data: Vec<u8>,
+    vk: &VerificationKey,
     proof: Vec<u8>,
     pubs: Vec<PublicInput>,
 ) -> Result<bool, VerifyError> {
@@ -233,8 +207,6 @@ pub fn verify(
             "Proof length is not {PROOF_SIZE} bytes"
         )));
     }
-
-    let vk = key::VerificationKey::try_from(&vk_data[..]).map_err(VerifyError::VkError)?;
 
     if vk.num_public_inputs != pubs.len() as u32 {
         return Err(VerifyError::PublicInputError(
@@ -249,7 +221,7 @@ pub fn verify(
     proof_data.extend_from_slice(&proof);
 
     let acir_composer = verifier_init()?;
-    acir_composer.load_verification_key(&vk_data)?;
+    acir_composer.load_verification_key(&vk.as_bytes())?;
     let verified = acir_composer.verify_proof(&proof_data)?;
     Ok(verified)
 }
@@ -274,6 +246,7 @@ mod test {
             .collect();
 
         let proof = proof_data[64..].to_vec();
-        assert!(verify(vk_data, proof, pub_inputs).unwrap());
+        let vk = VerificationKey::try_from(vk_data.as_slice()).unwrap();
+        assert!(verify(&vk, proof, pub_inputs).unwrap());
     }
 }
