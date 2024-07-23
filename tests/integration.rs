@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use serial_test::serial;
-use ultraplonk_verifier::{verify, AcirComposerError, PublicInput};
+use ultraplonk_verifier::{verify, PublicInput, VerifyError};
 
 static PROOF: [u8; 2144] = hex_literal::hex!(
     "
@@ -178,7 +178,7 @@ fn test_verify_invalid_pub_input_length() {
     match verify(VK.to_vec(), PROOF.to_vec(), pub_inputs) {
         Ok(_) => panic!("Verification should have failed"),
         Err(e) => match e {
-            AcirComposerError::PublicInputError(_) => {}
+            VerifyError::PublicInputError(_) => {}
             _ => panic!("Verification should have failed"),
         },
     }
@@ -195,7 +195,7 @@ fn test_verify_invalid_proof() {
         // Currently we are taking the easiest way to handle this situation, but we need to improve it
         Ok(_) => panic!("Verification should have failed"),
         Err(e) => match e {
-            AcirComposerError::BackendError(_) => {}
+            VerifyError::BackendError(_) => {}
             _ => panic!("Verification should have failed"),
         },
     }
@@ -213,7 +213,7 @@ fn test_verify_invalid_vk() {
         // Currently we are taking the easiest way to handle this situation, but we need to improve it
         Ok(_) => panic!("Verification should have failed"),
         Err(e) => match e {
-            AcirComposerError::BackendError(_) => {}
+            VerifyError::VkError(_) => {}
             _ => panic!("Verification should have failed"),
         },
     }

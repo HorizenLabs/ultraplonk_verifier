@@ -8,6 +8,7 @@ keywords = ["crypto", "blockchain", "cryptography"]
 
 [dependencies]
 thiserror = "1.0.61"
+substrate-bn = "0.6.0"
 
 [dev-dependencies]
 hex-literal = "0.4.1"
