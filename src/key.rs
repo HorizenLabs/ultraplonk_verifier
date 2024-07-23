@@ -19,6 +19,8 @@ use substrate_bn::{AffineG1, FieldError, Fq, GroupError, G1};
 
 #[derive(Debug, thiserror::Error)]
 pub enum VerificationKeyError {
+    #[error("Buffer too short")]
+    BufferTooShort,
     #[error("Invalid field '{field}': {error:?}")]
     InvalidField {
         field: &'static str,
@@ -75,7 +77,55 @@ pub struct VerificationKey {
 }
 
 impl VerificationKey {
-    pub fn try_from(data: &[u8]) -> Result<Self, VerificationKeyError> {
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend_from_slice(&self.circuit_type.to_be_bytes());
+        data.extend_from_slice(&self.circuit_size.to_be_bytes());
+        data.extend_from_slice(&self.num_public_inputs.to_be_bytes());
+
+        // Commitments size
+        data.extend_from_slice(&23u32.to_be_bytes());
+
+        write_g1(&CommitmentField::Q_1, self.q_1, &mut data);
+        write_g1(&CommitmentField::Q_2, self.q_2, &mut data);
+        write_g1(&CommitmentField::Q_3, self.q_3, &mut data);
+        write_g1(&CommitmentField::Q_4, self.q_4, &mut data);
+        write_g1(&CommitmentField::Q_M, self.q_m, &mut data);
+        write_g1(&CommitmentField::Q_C, self.q_c, &mut data);
+        write_g1(&CommitmentField::Q_ARITHMETIC, self.q_arithmetic, &mut data);
+        write_g1(&CommitmentField::Q_SORT, self.q_sort, &mut data);
+        write_g1(&CommitmentField::Q_ELLIPTIC, self.q_elliptic, &mut data);
+        write_g1(&CommitmentField::Q_AUX, self.q_aux, &mut data);
+        write_g1(&CommitmentField::SIGMA_1, self.sigma_1, &mut data);
+        write_g1(&CommitmentField::SIGMA_2, self.sigma_2, &mut data);
+        write_g1(&CommitmentField::SIGMA_3, self.sigma_3, &mut data);
+        write_g1(&CommitmentField::SIGMA_4, self.sigma_4, &mut data);
+        write_g1(&CommitmentField::TABLE_1, self.table_1, &mut data);
+        write_g1(&CommitmentField::TABLE_2, self.table_2, &mut data);
+        write_g1(&CommitmentField::TABLE_3, self.table_3, &mut data);
+        write_g1(&CommitmentField::TABLE_4, self.table_4, &mut data);
+        write_g1(&CommitmentField::TABLE_TYPE, self.table_type, &mut data);
+        write_g1(&CommitmentField::ID_1, self.id_1, &mut data);
+        write_g1(&CommitmentField::ID_2, self.id_2, &mut data);
+        write_g1(&CommitmentField::ID_3, self.id_3, &mut data);
+        write_g1(&CommitmentField::ID_4, self.id_4, &mut data);
+
+        // Contains recursive proof
+        data.push(if self.contains_recursive_proof { 1 } else { 0 });
+        data.extend_from_slice(&0u32.to_be_bytes());
+        data.push(if self.is_recursive_circuit { 1 } else { 0 });
+
+        data
+    }
+}
+
+impl TryFrom<&[u8]> for VerificationKey {
+    type Error = VerificationKeyError;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        if data.len() < 1719 {
+            return Err(VerificationKeyError::BufferTooShort);
+        }
         let circuit_type = read_u32(&data[0..4]);
         if circuit_type != 2 {
             return Err(VerificationKeyError::InvalidCircuitType {
@@ -325,4 +375,16 @@ fn read_u32(buffer: &[u8]) -> u32 {
         | ((buffer[1] as u32) << 16)
         | ((buffer[2] as u32) << 8)
         | (buffer[3] as u32)
+}
+
+fn write_g1(field: &CommitmentField, g1: G1, data: &mut Vec<u8>) {
+    data.extend_from_slice(&(field.str().len() as u32).to_be_bytes());
+    data.extend_from_slice(field.str().as_bytes());
+    let affine = AffineG1::from_jacobian(g1).unwrap();
+    let mut x = [0u8; 32];
+    let mut y = [0u8; 32];
+    affine.x().to_big_endian(&mut x).unwrap();
+    affine.y().to_big_endian(&mut y).unwrap();
+    data.extend_from_slice(x.as_ref());
+    data.extend_from_slice(y.as_ref());
 }
