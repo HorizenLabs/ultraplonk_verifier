@@ -94,6 +94,7 @@ pub enum VerifyError {
 /// use ultraplonk_verifier::verify;
 /// use ultraplonk_verifier::PublicInput;
 /// use ultraplonk_verifier::VerificationKey;
+/// use ultraplonk_verifier::PROOF_SIZE;
 ///
 /// // Placeholder functions to simulate loading data
 /// fn load_verification_key() -> VerificationKey {
@@ -101,7 +102,7 @@ pub enum VerifyError {
 ///     unimplemented!()
 /// }
 ///
-/// fn load_proof_data() -> Vec<u8> {
+/// fn load_proof_data() -> [u8; PROOF_SIZE] {
 ///     // Implement your logic to load proof data
 ///     unimplemented!()
 /// }
@@ -123,7 +124,7 @@ pub enum VerifyError {
 /// ```
 pub fn verify(
     vk: &VerificationKey,
-    proof: &[u8],
+    proof: &[u8; PROOF_SIZE],
     pubs: &[PublicInput],
 ) -> Result<bool, VerifyError> {
     check_proof_length(proof)?;
@@ -198,12 +199,19 @@ mod test {
             .collect()
     }
 
+    fn extract_proof(proof_data: &[u8]) -> [u8; PROOF_SIZE] {
+        let slice = &proof_data[64..64 + PROOF_SIZE];
+        let mut array = [0u8; PROOF_SIZE];
+        array.copy_from_slice(slice);
+        array
+    }
+
     #[test]
     fn test_verify() {
         let vk_data = read_file("resources/proves/vk");
         let proof_data = read_file("resources/proves/proof");
         let pubs = extract_public_inputs(&proof_data, 2);
-        let proof = proof_data[64..].to_vec();
+        let proof = extract_proof(&proof_data);
 
         let vk = VerificationKey::try_from(vk_data.as_slice())
             .expect("Failed to parse verification key");
