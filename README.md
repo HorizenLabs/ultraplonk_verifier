@@ -38,6 +38,7 @@ fn main() {
         Err(e) => println!("Verification failed with error: {:?}", e),
     }
 }
+```
 
 ## Building
 
