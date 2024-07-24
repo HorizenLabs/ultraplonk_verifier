@@ -20,6 +20,7 @@
 
 mod acir;
 mod key;
+mod srs;
 
 /// The backend error.
 use acir::AcirBackendError;
@@ -61,21 +62,9 @@ pub enum VerifyError {
     InvalidProofError(String),
 }
 
-/// A constant byte slice representing BN254 G2 point. `noir-compiler` when installed will
-/// downloads this data and stores it in ~/.nargo/backends/acvm-backend-barretenberg/crs/bn254_g2.dat
-const G2_DATA: &[u8; 128] = &[
-    1, 24, 196, 213, 184, 55, 188, 194, 188, 137, 181, 179, 152, 181, 151, 78, 159, 89, 68, 7, 59,
-    50, 7, 139, 126, 35, 31, 236, 147, 136, 131, 176, 38, 14, 1, 178, 81, 246, 241, 199, 231, 255,
-    78, 88, 7, 145, 222, 232, 234, 81, 216, 122, 53, 142, 3, 139, 78, 254, 48, 250, 192, 147, 131,
-    193, 34, 254, 189, 163, 192, 192, 99, 42, 86, 71, 91, 66, 20, 229, 97, 94, 17, 230, 221, 63,
-    150, 230, 206, 162, 133, 74, 135, 212, 218, 204, 94, 85, 4, 252, 99, 105, 247, 17, 15, 227,
-    210, 81, 86, 193, 187, 154, 114, 133, 156, 242, 160, 70, 65, 249, 155, 164, 238, 65, 60, 128,
-    218, 106, 95, 228,
-];
-
 pub fn verifier_init() -> Result<AcirComposer, VerifyError> {
     let acir_composer = AcirComposer::new(&0)?;
-    acir::srs_init(&[], 0, G2_DATA)?;
+    acir::srs_init(&[], 0, &srs::SRS_G2)?;
     Ok(acir_composer)
 }
 
