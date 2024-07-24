@@ -51,4 +51,3 @@ cargo make ci
 ## License
 
 This project is licensed under the MIT License - see the [APACHE 2.0 license](LICENSE-APACHE2) file for details.
-```
