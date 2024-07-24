@@ -27,7 +27,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Ensure barretenberg submodule is available
     if !lib_path.exists() {
-        eprintln!("The barretenberg submodule is missing. Please run `git submodule update --init --recursive`.");
         Command::new("git")
             .args(&["submodule", "update", "--init", "--recursive"])
             .status()?;
@@ -41,7 +40,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if !dest_path.exists() {
             fs::copy(&path, &dest_path)?;
-            println!("Copied {} to {}", path.display(), dest_path.display());
         }
         println!("cargo:rerun-if-changed={}", path.display());
     }
@@ -65,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Determine the Cargo build type
     let build_type = match env::var("PROFILE").as_deref() {
-        Ok("release") => "RelWithAssert",
+        Ok("production") | Ok("release") => "RelWithAssert",
         _ => "RelWithDebInfo",
     };
 
@@ -100,8 +98,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Generate Rust bindings for the C++ headers
         generate_bindings(&lib_path.join("src"))?;
-    } else {
-        println!("CMake build is up to date, skipping rebuild.");
     }
 
     Ok(())

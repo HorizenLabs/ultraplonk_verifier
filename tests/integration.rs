@@ -242,7 +242,7 @@ fn test_verify_invalid_vk() {
         Ok(false) => {} // EC proof points are on the curve but do not satisfy the constraints
         Ok(true) => panic!("Verification should have failed"),
         Err(VerifyError::BackendError(_)) => {} // Proof EC points are not on the curve
-        Err(VerifyError::VkError(_)) => {} // Verification key is invalid
+        Err(VerifyError::VkError(_)) => {}      // Verification key is invalid
         Err(e) => panic!("Verification failed with an unexpected error: {:?}", e),
     }
 }
