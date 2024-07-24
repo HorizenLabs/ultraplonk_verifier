@@ -55,14 +55,6 @@ impl AcirComposer {
 
     pub fn verify_proof(&self, proof: &[u8]) -> Result<bool, AcirBackendError> {
         let mut result = false;
-        // unsafe {
-        //     acir_verify_proof(
-        //         acir_composer,
-        //         serialize_slice(proof).as_slice().as_ptr(),
-        //         &mut result,
-        //     )
-        // };
-
         let error_msg_ptr = unsafe {
             rust_acir_verify_proof(
                 &self.composer_ptr,
