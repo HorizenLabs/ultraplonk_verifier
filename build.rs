@@ -30,8 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("The barretenberg submodule is missing. Please run `git submodule update --init --recursive`.");
         Command::new("git")
             .args(&["submodule", "update", "--init", "--recursive"])
-            .status()
-            .expect("Failed to fetch submodules");
+            .status()?;
     }
 
     // Copy files from assets/code to barretenberg/cpp/src/barretenberg/dsl/acir_proofs
@@ -67,34 +66,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Determine the Cargo build type
     let build_type = match env::var("PROFILE").as_deref() {
         Ok("release") => "RelWithAssert",
-        _ => "Debug",
+        _ => "RelWithDebInfo",
     };
 
-    // Build using the cmake crate
-    let dst = cmake::Config::new(&lib_path)
-        .configure_arg(format!("-DCMAKE_BUILD_TYPE={}", build_type))
-        .configure_arg("-DMULTITHREADING=OFF")
-        .build_target("bb")
-        .very_verbose(true)
-        .build();
+    // Check if we need to rebuild using CMake
+    let cmake_build_dir = lib_path.join("build");
 
-    // Link the C++ standard library and custom libraries
-    println!("cargo:rustc-link-search=native={}/build/lib", dst.display());
-    println!("cargo:rustc-link-lib=static=barretenberg");
-    println!("cargo:rustc-link-lib=static=env");
-    if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
-        println!("cargo:rustc-link-lib=c++");
+    // Ensure the build directory exists and is not empty
+    let rebuild_needed = !cmake_build_dir.exists()
+        || fs::read_dir(&cmake_build_dir)?.next().is_none()
+        || !PathBuf::from(env::var("OUT_DIR")?)
+            .join("bindings.rs")
+            .exists();
+
+    if rebuild_needed {
+        // Build using the cmake crate
+        let dst = cmake::Config::new(&lib_path)
+            .configure_arg(format!("-DCMAKE_BUILD_TYPE={}", build_type))
+            .configure_arg("-DMULTITHREADING=OFF")
+            .build_target("bb")
+            .very_verbose(true)
+            .build();
+
+        // Link the C++ standard library and custom libraries
+        println!("cargo:rustc-link-search=native={}/build/lib", dst.display());
+        println!("cargo:rustc-link-lib=static=barretenberg");
+        println!("cargo:rustc-link-lib=static=env");
+        if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
+            println!("cargo:rustc-link-lib=c++");
+        } else {
+            println!("cargo:rustc-link-lib=stdc++");
+        }
+
+        // Generate Rust bindings for the C++ headers
+        generate_bindings(&lib_path.join("src"))?;
     } else {
-        println!("cargo:rustc-link-lib=stdc++");
+        println!("CMake build is up to date, skipping rebuild.");
     }
-
-    // Generate Rust bindings for the C++ headers
-    generate_bindings(&lib_path.join("src"));
 
     Ok(())
 }
 
-fn generate_bindings(include_path: &PathBuf) {
+fn generate_bindings(include_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     // Begin setting up bindgen to generate Rust bindings for C++ code.
     let bindings = bindgen::Builder::default()
         // Provide Clang arguments for C++20 and specify we are working with C++.
@@ -121,10 +134,12 @@ fn generate_bindings(include_path: &PathBuf) {
         .expect("Couldn't generate bindings!");
 
     // Determine the output path for the bindings using the OUT_DIR environment variable.
-    let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR")?);
 
     // Write the generated bindings to a file.
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
+
+    Ok(())
 }
