@@ -13,12 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Suppress the flurry of warnings caused by using "C" naming conventions
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-
 mod acir;
+mod bindings;
 mod key;
 mod srs;
 
@@ -30,9 +26,6 @@ use acir::AcirComposer;
 pub use key::VerificationKey;
 /// The verification key error.
 pub use key::VerificationKeyError;
-
-// This matches bindgen::Builder output
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 /// Expected sizes in bytes for proof.
 pub const PROOF_SIZE: usize = 2144;
@@ -101,7 +94,7 @@ pub enum VerifyError {
 /// use ultraplonk_verifier::verify;
 /// use ultraplonk_verifier::PublicInput;
 /// use ultraplonk_verifier::VerificationKey;
-/// 
+///
 /// // Placeholder functions to simulate loading data
 /// fn load_verification_key() -> VerificationKey {
 ///     // Implement your logic to load the verification key
@@ -161,7 +154,10 @@ fn check_proof_length(proof: &[u8]) -> Result<(), VerifyError> {
     }
 }
 
-fn check_public_input_number(vk: &VerificationKey, pubs: &[PublicInput]) -> Result<(), VerifyError> {
+fn check_public_input_number(
+    vk: &VerificationKey,
+    pubs: &[PublicInput],
+) -> Result<(), VerifyError> {
     if vk.num_public_inputs != pubs.len() as u32 {
         Err(VerifyError::PublicInputNumberError {
             expected: vk.num_public_inputs,
@@ -191,7 +187,7 @@ mod test {
     fn read_file(path: &str) -> Vec<u8> {
         fs::read(path).expect(&format!("Failed to read file: {}", path))
     }
-    
+
     fn extract_public_inputs(proof_data: &[u8], num_inputs: usize) -> Vec<PublicInput> {
         (0..num_inputs)
             .map(|i| {
@@ -209,7 +205,8 @@ mod test {
         let pubs = extract_public_inputs(&proof_data, 2);
         let proof = proof_data[64..].to_vec();
 
-        let vk = VerificationKey::try_from(vk_data.as_slice()).expect("Failed to parse verification key");
+        let vk = VerificationKey::try_from(vk_data.as_slice())
+            .expect("Failed to parse verification key");
 
         assert!(verify(&vk, &proof, &pubs).expect("Verification failed"));
     }
