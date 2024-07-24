@@ -4,5 +4,6 @@
         "barretenberg",
         "rustc",
         "ultraplonk"
-    ]
+    ],
+    "cmake.configureOnOpen": false
 }

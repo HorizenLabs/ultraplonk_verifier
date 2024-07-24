@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(non_camel_case_types)]
+
+use byteorder::{BigEndian, ByteOrder};
 use std::collections::HashMap;
 
 use substrate_bn::{AffineG1, FieldError, Fq, GroupError, G1};
@@ -39,6 +42,8 @@ pub enum VerificationKeyError {
     InvalidCommitmentListNumber { value: usize },
     #[error("Invalid commitment key at offset {offset:?}")]
     InvalidCommitmentKey { offset: usize },
+    #[error("Missing commitment field: {field:?}")]
+    MissingCommitmentField { field: CommitmentField },
     #[error("Recursion is not supported")]
     RecursionNotSupported,
 }
@@ -126,22 +131,23 @@ impl TryFrom<&[u8]> for VerificationKey {
         if data.len() < 1719 {
             return Err(VerificationKeyError::BufferTooShort);
         }
-        let circuit_type = read_u32(&data[0..4]);
+        let circuit_type = BigEndian::read_u32(&data[0..4]);
+        // let circuit_type = read_u32(&data[0..4]);
         if circuit_type != 2 {
             return Err(VerificationKeyError::InvalidCircuitType {
                 value: circuit_type,
             });
         }
 
-        let circuit_size = read_u32(&data[4..8]);
-        let num_public_inputs = read_u32(&data[8..12]);
-        let mut commitments_num = read_u32(&data[12..16]) as usize;
+        let circuit_size = BigEndian::read_u32(&data[4..8]);
+        let num_public_inputs = BigEndian::read_u32(&data[8..12]);
+        let mut commitments_num = BigEndian::read_u32(&data[12..16]) as usize;
 
         let mut commitments = HashMap::new();
         let mut i = 16;
         let u32_size = 4;
         while i < data.len() && commitments_num > 0 {
-            let key_size = read_u32(&data[i..i + u32_size]) as usize;
+            let key_size = BigEndian::read_u32(&data[i..i + u32_size]) as usize;
             i += u32_size;
             let key = String::from_utf8(data[i..i + key_size].to_vec())
                 .map_err(|_| VerificationKeyError::InvalidCommitmentKey { offset: i })?;
@@ -166,7 +172,7 @@ impl TryFrom<&[u8]> for VerificationKey {
             return Err(VerificationKeyError::RecursionNotSupported);
         }
         i += 1;
-        let recursive_proof_public_inputs_size = read_u32(&data[i..i + u32_size]);
+        let recursive_proof_public_inputs_size = BigEndian::read_u32(&data[i..i + u32_size]);
         i += u32_size;
         if recursive_proof_public_inputs_size != 0 {
             return Err(VerificationKeyError::RecursionNotSupported);
@@ -180,29 +186,29 @@ impl TryFrom<&[u8]> for VerificationKey {
             circuit_type,
             circuit_size,
             num_public_inputs,
-            q_1: commitments.remove(&CommitmentField::Q_1).unwrap(),
-            q_2: commitments.remove(&CommitmentField::Q_2).unwrap(),
-            q_3: commitments.remove(&CommitmentField::Q_3).unwrap(),
-            q_4: commitments.remove(&CommitmentField::Q_4).unwrap(),
-            q_m: commitments.remove(&CommitmentField::Q_M).unwrap(),
-            q_c: commitments.remove(&CommitmentField::Q_C).unwrap(),
-            q_arithmetic: commitments.remove(&CommitmentField::Q_ARITHMETIC).unwrap(),
-            q_sort: commitments.remove(&CommitmentField::Q_SORT).unwrap(),
-            q_elliptic: commitments.remove(&CommitmentField::Q_ELLIPTIC).unwrap(),
-            q_aux: commitments.remove(&CommitmentField::Q_AUX).unwrap(),
-            sigma_1: commitments.remove(&CommitmentField::SIGMA_1).unwrap(),
-            sigma_2: commitments.remove(&CommitmentField::SIGMA_2).unwrap(),
-            sigma_3: commitments.remove(&CommitmentField::SIGMA_3).unwrap(),
-            sigma_4: commitments.remove(&CommitmentField::SIGMA_4).unwrap(),
-            table_1: commitments.remove(&CommitmentField::TABLE_1).unwrap(),
-            table_2: commitments.remove(&CommitmentField::TABLE_2).unwrap(),
-            table_3: commitments.remove(&CommitmentField::TABLE_3).unwrap(),
-            table_4: commitments.remove(&CommitmentField::TABLE_4).unwrap(),
-            table_type: commitments.remove(&CommitmentField::TABLE_TYPE).unwrap(),
-            id_1: commitments.remove(&CommitmentField::ID_1).unwrap(),
-            id_2: commitments.remove(&CommitmentField::ID_2).unwrap(),
-            id_3: commitments.remove(&CommitmentField::ID_3).unwrap(),
-            id_4: commitments.remove(&CommitmentField::ID_4).unwrap(),
+            q_1: remove_commitment_field(&mut commitments, CommitmentField::Q_1)?,
+            q_2: remove_commitment_field(&mut commitments, CommitmentField::Q_2)?,
+            q_3: remove_commitment_field(&mut commitments, CommitmentField::Q_3)?,
+            q_4: remove_commitment_field(&mut commitments, CommitmentField::Q_4)?,
+            q_m: remove_commitment_field(&mut commitments, CommitmentField::Q_M)?,
+            q_c: remove_commitment_field(&mut commitments, CommitmentField::Q_C)?,
+            q_arithmetic: remove_commitment_field(&mut commitments, CommitmentField::Q_ARITHMETIC)?,
+            q_sort: remove_commitment_field(&mut commitments, CommitmentField::Q_SORT)?,
+            q_elliptic: remove_commitment_field(&mut commitments, CommitmentField::Q_ELLIPTIC)?,
+            q_aux: remove_commitment_field(&mut commitments, CommitmentField::Q_AUX)?,
+            sigma_1: remove_commitment_field(&mut commitments, CommitmentField::SIGMA_1)?,
+            sigma_2: remove_commitment_field(&mut commitments, CommitmentField::SIGMA_2)?,
+            sigma_3: remove_commitment_field(&mut commitments, CommitmentField::SIGMA_3)?,
+            sigma_4: remove_commitment_field(&mut commitments, CommitmentField::SIGMA_4)?,
+            table_1: remove_commitment_field(&mut commitments, CommitmentField::TABLE_1)?,
+            table_2: remove_commitment_field(&mut commitments, CommitmentField::TABLE_2)?,
+            table_3: remove_commitment_field(&mut commitments, CommitmentField::TABLE_3)?,
+            table_4: remove_commitment_field(&mut commitments, CommitmentField::TABLE_4)?,
+            table_type: remove_commitment_field(&mut commitments, CommitmentField::TABLE_TYPE)?,
+            id_1: remove_commitment_field(&mut commitments, CommitmentField::ID_1)?,
+            id_2: remove_commitment_field(&mut commitments, CommitmentField::ID_2)?,
+            id_3: remove_commitment_field(&mut commitments, CommitmentField::ID_3)?,
+            id_4: remove_commitment_field(&mut commitments, CommitmentField::ID_4)?,
             contains_recursive_proof,
             recursive_proof_public_inputs_size,
             is_recursive_circuit,
@@ -352,6 +358,15 @@ impl CommitmentField {
     }
 }
 
+fn remove_commitment_field(
+    commitments: &mut HashMap<CommitmentField, G1>,
+    field: CommitmentField,
+) -> Result<G1, VerificationKeyError> {
+    commitments
+        .remove(&field)
+        .ok_or(VerificationKeyError::MissingCommitmentField { field })
+}
+
 fn read_g1(field: &CommitmentField, data: &[u8]) -> Result<G1, VerificationKeyError> {
     let x = read_fq(field.x_str(), &data[0..32])?;
     let y = read_fq(field.y_str(), &data[32..64])?;
@@ -368,13 +383,6 @@ fn read_fq(addr: &'static str, data: &[u8]) -> Result<Fq, VerificationKeyError> 
         field: addr,
         error: e,
     })
-}
-
-fn read_u32(buffer: &[u8]) -> u32 {
-    ((buffer[0] as u32) << 24)
-        | ((buffer[1] as u32) << 16)
-        | ((buffer[2] as u32) << 8)
-        | (buffer[3] as u32)
 }
 
 fn write_g1(field: &CommitmentField, g1: G1, data: &mut Vec<u8>) {

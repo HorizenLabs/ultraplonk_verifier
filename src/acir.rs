@@ -16,7 +16,7 @@
 use std::{ffi::c_void, ffi::CStr, ptr};
 
 // This matches bindgen::Builder output
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+use crate::bindings::*;
 
 type AcirComposerPtr = *mut c_void;
 
