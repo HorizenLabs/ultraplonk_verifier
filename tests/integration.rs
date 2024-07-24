@@ -162,7 +162,7 @@ fn public_inputs() -> Vec<PublicInput> {
 #[serial]
 fn should_verify_proof() {
     let pubs = public_inputs();
-    let proof = PROOF.to_vec();
+    let proof = PROOF;
     let vk = vk();
 
     let verified = verify(&vk, &proof, &pubs).expect("Failed to verify the proof");
@@ -175,7 +175,7 @@ fn test_verify_invalid_pub_input() {
     let mut pubs = public_inputs();
     pubs[0][0] = 1;
 
-    let proof = PROOF.to_vec();
+    let proof = PROOF;
     let vk = vk();
 
     let verified = verify(&vk, &proof, &pubs).expect("Failed to verify the proof");
@@ -188,7 +188,7 @@ fn test_verify_invalid_pub_input_length() {
     let mut pubs = public_inputs();
     pubs.remove(0);
 
-    let proof = PROOF.to_vec();
+    let proof = PROOF;
     let vk = vk();
 
     match verify(&vk, &proof, &pubs) {
@@ -209,7 +209,7 @@ fn test_verify_invalid_proof() {
     let pubs = public_inputs();
     let vk = vk();
 
-    let mut proof = PROOF.to_vec();
+    let mut proof = PROOF;
     proof[138] = 1; // Modify the proof to make it invalid
 
     match verify(&vk, &proof, &pubs) {
@@ -228,7 +228,7 @@ fn test_verify_invalid_proof() {
 #[serial]
 fn test_verify_invalid_vk() {
     let pubs = public_inputs();
-    let proof = PROOF.to_vec();
+    let proof = PROOF;
 
     let mut vk = vk();
     vk.q_1.set_x(Fq::zero()); // Modify the verification key to make it invalid
