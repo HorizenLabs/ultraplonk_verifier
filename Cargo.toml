@@ -9,9 +9,9 @@ keywords = ["crypto", "blockchain", "cryptography"]
 [dependencies]
 thiserror = "1.0.61"
 substrate-bn = "0.6.0"
+hex-literal = "0.4.1"
 
 [dev-dependencies]
-hex-literal = "0.4.1"
 serial_test = "3.1.1"
 
 [build-dependencies]
