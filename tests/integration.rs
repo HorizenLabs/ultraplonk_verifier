@@ -161,29 +161,44 @@ fn public_inputs() -> Vec<PublicInput> {
 #[test]
 #[serial]
 fn should_verify_proof() {
-    let verified = verify(&vk(), PROOF.to_vec(), public_inputs()).unwrap();
+    let pubs = public_inputs();
+    let proof = PROOF.to_vec();
+    let vk = vk();
+
+    let verified = verify(&vk, &proof, &pubs).expect("Failed to verify the proof");
     assert!(verified);
 }
 
 #[test]
 #[serial]
 fn test_verify_invalid_pub_input() {
-    let mut pub_inputs = public_inputs();
-    pub_inputs[0][0] = 1;
-    let verified = verify(&vk(), PROOF.to_vec(), pub_inputs).unwrap();
+    let mut pubs = public_inputs();
+    pubs[0][0] = 1;
+
+    let proof = PROOF.to_vec();
+    let vk = vk();
+
+    let verified = verify(&vk, &proof, &pubs).expect("Failed to verify the proof");
     assert!(!verified);
 }
 
 #[test]
 #[serial]
 fn test_verify_invalid_pub_input_length() {
-    let mut pub_inputs = public_inputs();
-    pub_inputs.remove(0);
-    match verify(&vk(), PROOF.to_vec(), pub_inputs) {
-        Ok(_) => panic!("Verification should have failed"),
+    let mut pubs = public_inputs();
+    pubs.remove(0);
+
+    let proof = PROOF.to_vec();
+    let vk = vk();
+
+    match verify(&vk, &proof, &pubs) {
+        Ok(_) => panic!("Verification should have failed due to incorrect public input length"),
         Err(e) => match e {
-            VerifyError::PublicInputError(_) => {}
-            _ => panic!("Verification should have failed"),
+            VerifyError::PublicInputNumberError { expected, actual } => {
+                assert_eq!(expected, 2);
+                assert_eq!(actual, 1);
+            }
+            _ => panic!("Verification failed for an unexpected reason: {:?}", e),
         },
     }
 }
@@ -191,34 +206,43 @@ fn test_verify_invalid_pub_input_length() {
 #[test]
 #[serial]
 fn test_verify_invalid_proof() {
+    let pubs = public_inputs();
+    let vk = vk();
+
     let mut proof = PROOF.to_vec();
-    proof[138] = 1;
-    match verify(&vk(), proof, public_inputs()) {
-        // TODO: We have a very ambiguos situation here, if the EC proof points are on the curve but do not satisfy the constraints
-        // the result is Ok(false) but if the proof EC points are not on the curve the result is Err(BackendError)
-        // Currently we are taking the easiest way to handle this situation, but we need to improve it
-        Ok(_) => panic!("Verification should have failed"),
-        Err(e) => match e {
-            VerifyError::BackendError(_) => {}
-            _ => panic!("Verification should have failed"),
-        },
+    proof[138] = 1; // Modify the proof to make it invalid
+
+    match verify(&vk, &proof, &pubs) {
+        // We have a very ambiguous situation here:
+        // - If the EC proof points are on the curve but do not satisfy the constraints, the result is Ok(false).
+        // - If the proof EC points are not on the curve, the result is Err(BackendError).
+        // Currently, we are taking the easiest way to handle this situation, but we need to improve it.
+        Ok(false) => {} // EC proof points are on the curve but do not satisfy the constraints
+        Ok(true) => panic!("Verification should have failed"),
+        Err(VerifyError::BackendError(_)) => {} // Proof EC points are not on the curve
+        Err(e) => panic!("Verification failed with an unexpected error: {:?}", e),
     }
 }
 
 #[test]
 #[serial]
 fn test_verify_invalid_vk() {
+    let pubs = public_inputs();
+    let proof = PROOF.to_vec();
+
     let mut vk = vk();
-    vk.q_1.set_x(Fq::zero());
-    match verify(&vk, PROOF.to_vec(), public_inputs()) {
-        // TODO: We have a very ambiguos situation here, if the EC proof points are on the curve but do not satisfy the constraints
-        // the result is Ok(false) but if the proof EC points are not on the curve the result is Err(BackendError)
-        // Currently we are taking the easiest way to handle this situation, but we need to improve it
-        Ok(_) => panic!("Verification should have failed"),
-        Err(e) => match e {
-            VerifyError::BackendError(_) => {}
-            VerifyError::VkError(_) => {}
-            _ => panic!("Verification should have failed"),
-        },
+    vk.q_1.set_x(Fq::zero()); // Modify the verification key to make it invalid
+
+    match verify(&vk, &proof, &pubs) {
+        // We have a very ambiguous situation here:
+        // - If the EC proof points are on the curve but do not satisfy the constraints, the result is Ok(false).
+        // - If the proof EC points are not on the curve, the result is Err(BackendError).
+        // - If the verification key is invalid, the result is Err(VkError).
+        // Currently, we are taking the easiest way to handle this situation, but we need to improve it.
+        Ok(false) => {} // EC proof points are on the curve but do not satisfy the constraints
+        Ok(true) => panic!("Verification should have failed"),
+        Err(VerifyError::BackendError(_)) => {} // Proof EC points are not on the curve
+        Err(VerifyError::VkError(_)) => {} // Verification key is invalid
+        Err(e) => panic!("Verification failed with an unexpected error: {:?}", e),
     }
 }
