@@ -378,13 +378,29 @@ fn read_u32(buffer: &[u8]) -> u32 {
 }
 
 fn write_g1(field: &CommitmentField, g1: G1, data: &mut Vec<u8>) {
-    data.extend_from_slice(&(field.str().len() as u32).to_be_bytes());
-    data.extend_from_slice(field.str().as_bytes());
-    let affine = AffineG1::from_jacobian(g1).unwrap();
-    let mut x = [0u8; 32];
-    let mut y = [0u8; 32];
-    affine.x().to_big_endian(&mut x).unwrap();
-    affine.y().to_big_endian(&mut y).unwrap();
-    data.extend_from_slice(x.as_ref());
-    data.extend_from_slice(y.as_ref());
+    // Helper to convert a field to bytes
+    let field_to_bytes = |field: &CommitmentField| -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let field_str = field.str();
+        bytes.extend_from_slice(&(field_str.len() as u32).to_be_bytes());
+        bytes.extend_from_slice(field_str.as_bytes());
+        bytes
+    };
+
+    // Helper to convert a G1 point to bytes
+    let g1_to_bytes = |g1: G1| -> Vec<u8> {
+        let affine = AffineG1::from_jacobian(g1).unwrap();
+        let mut x = [0u8; 32];
+        let mut y = [0u8; 32];
+        affine.x().to_big_endian(&mut x).unwrap();
+        affine.y().to_big_endian(&mut y).unwrap();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&x);
+        bytes.extend_from_slice(&y);
+        bytes
+    };
+
+    // Use the helpers to append bytes to the data vector
+    data.extend_from_slice(&field_to_bytes(field));
+    data.extend_from_slice(&g1_to_bytes(g1));
 }
