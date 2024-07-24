@@ -30,6 +30,9 @@ pub use key::VerificationKeyError;
 /// Expected sizes in bytes for proof.
 pub const PROOF_SIZE: usize = 2144;
 
+/// The proof data.
+pub type Proof = [u8; PROOF_SIZE];
+
 /// The public input.
 pub type PublicInput = [u8; 32];
 
@@ -51,14 +54,6 @@ pub enum VerifyError {
     /// - `actual`: The actual number of public inputs provided.
     #[error("Invalid public input length: {actual}, expected: {expected}")]
     PublicInputNumberError { expected: u32, actual: u32 },
-
-    /// Error indicating an incorrect proof length.
-    ///
-    /// # Fields
-    /// - `expected`: The expected length of the proof.
-    /// - `actual`: The actual length of the proof provided.
-    #[error("Invalid proof length: {actual}, expected: {expected}")]
-    InvalidProofLengthError { expected: usize, actual: usize },
 }
 
 /// Verifies a cryptographic proof against a verification key and public inputs.
@@ -92,9 +87,9 @@ pub enum VerifyError {
 ///
 /// ```no_run
 /// use ultraplonk_verifier::verify;
+/// use ultraplonk_verifier::Proof;
 /// use ultraplonk_verifier::PublicInput;
 /// use ultraplonk_verifier::VerificationKey;
-/// use ultraplonk_verifier::PROOF_SIZE;
 ///
 /// // Placeholder functions to simulate loading data
 /// fn load_verification_key() -> VerificationKey {
@@ -102,7 +97,7 @@ pub enum VerifyError {
 ///     unimplemented!()
 /// }
 ///
-/// fn load_proof_data() -> [u8; PROOF_SIZE] {
+/// fn load_proof_data() -> Proof {
 ///     // Implement your logic to load proof data
 ///     unimplemented!()
 /// }
@@ -124,10 +119,9 @@ pub enum VerifyError {
 /// ```
 pub fn verify(
     vk: &VerificationKey,
-    proof: &[u8; PROOF_SIZE],
+    proof: &Proof,
     pubs: &[PublicInput],
 ) -> Result<bool, VerifyError> {
-    check_proof_length(proof)?;
     check_public_input_number(vk, pubs)?;
 
     let proof_data = concatenate_proof_data(pubs, proof);
@@ -142,17 +136,6 @@ fn verifier_init() -> Result<AcirComposer, VerifyError> {
     let acir_composer = AcirComposer::new(&0)?;
     acir::srs_init(&[], 0, &srs::SRS_G2)?;
     Ok(acir_composer)
-}
-
-fn check_proof_length(proof: &[u8]) -> Result<(), VerifyError> {
-    if proof.len() != PROOF_SIZE {
-        Err(VerifyError::InvalidProofLengthError {
-            expected: PROOF_SIZE,
-            actual: proof.len(),
-        })
-    } else {
-        Ok(())
-    }
 }
 
 fn check_public_input_number(
@@ -199,7 +182,7 @@ mod test {
             .collect()
     }
 
-    fn extract_proof(proof_data: &[u8]) -> [u8; PROOF_SIZE] {
+    fn extract_proof(proof_data: &[u8]) -> Proof {
         let slice = &proof_data[64..64 + PROOF_SIZE];
         let mut array = [0u8; PROOF_SIZE];
         array.copy_from_slice(slice);
