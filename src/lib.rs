@@ -21,6 +21,10 @@
 mod acir;
 mod key;
 
+/// The backend error.
+use acir::AcirBackendError;
+/// The ACIR composer.
+use acir::AcirComposer;
 /// The verification key.
 pub use key::VerificationKey;
 /// The verification key error.
@@ -29,50 +33,10 @@ pub use key::VerificationKeyError;
 // This matches bindgen::Builder output
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-/// `BackendError` enumerates all possible errors returned by the backend operations.
-///
-/// # Variants
-///
-/// - `BindingCallError(String)`: Represents an error that occurs during a binding call. The `String` contains the error message.
-/// - `BindingCallPointerError(String)`: Represents an error that occurs if there is an issue with the output pointer during a binding call. The `String` contains the error message.
-#[derive(Debug, thiserror::Error)]
-pub enum BackendError {
-    #[error("Binding call error")]
-    BindingCallError(String),
-    #[error("Binding call output pointer error")]
-    BindingCallPointerError(String),
-}
-
 // Expected sizes in bytes for proof.
 pub const PROOF_SIZE: usize = 2144;
 
 pub type PublicInput = [u8; 32];
-
-/// Serializes a slice of bytes into a `Vec<u8>` with the first 4 bytes representing the length of the data slice in big-endian format, followed by the data itself.
-///
-/// # Arguments
-///
-/// * `data` - A slice of bytes (`&[u8]`) to be serialized.
-///
-/// # Returns
-///
-/// A `Vec<u8>` containing the serialized data.
-///
-/// # Examples
-///
-/// ```
-/// use ultraplonk_verifier::serialize_slice;
-///
-/// let data = [1, 2, 3, 4];
-/// let serialized = serialize_slice(&data);
-/// assert_eq!(serialized, vec![0, 0, 0, 4, 1, 2, 3, 4]);
-/// ```
-pub fn serialize_slice(data: &[u8]) -> Vec<u8> {
-    let mut buffer = Vec::new();
-    buffer.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    buffer.extend_from_slice(data);
-    buffer
-}
 
 /// Enum representing various errors that can occur during the verification process.
 ///
@@ -85,7 +49,7 @@ pub fn serialize_slice(data: &[u8]) -> Vec<u8> {
 #[derive(thiserror::Error, Debug)]
 pub enum VerifyError {
     #[error("BackendError")]
-    BackendError(#[from] BackendError),
+    BackendError(#[from] AcirBackendError),
 
     #[error("VerificationKeyError")]
     VkError(VerificationKeyError),
@@ -95,59 +59,6 @@ pub enum VerifyError {
 
     #[error("InvalidProofError")]
     InvalidProofError(String),
-}
-
-/// Represents an ACIR composer with a pointer to the underlying C structure.
-pub struct AcirComposer {
-    composer_ptr: acir::AcirComposerPtr,
-}
-
-impl AcirComposer {
-    /// Creates a new `AcirComposer` instance with a given size hint.
-    ///
-    /// # Arguments
-    ///
-    /// * `size_hint` - A hint for the size of the composer to optimize allocations.
-    ///
-    /// # Returns
-    ///
-    /// A result containing the new `AcirComposer` instance or an `AcirComposerError` on failure.
-    pub fn new(size_hint: &u32) -> Result<Self, VerifyError> {
-        Ok(acir::new_acir_composer(size_hint).map(|ptr| Self { composer_ptr: ptr })?)
-    }
-
-    /// Loads a verification key into the composer.
-    ///
-    /// # Arguments
-    ///
-    /// * `vk` - A byte slice containing the verification key.
-    ///
-    /// # Returns
-    ///
-    /// A result indicating success or an `AcirComposerError` on failure.
-    pub fn load_verification_key(&self, vk: &[u8]) -> Result<(), VerifyError> {
-        Ok(acir::load_verification_key(&self.composer_ptr, vk)?)
-    }
-
-    /// Verifies a proof using the composer.
-    ///
-    /// # Arguments
-    ///
-    /// * `proof` - A byte slice containing the proof to be verified.
-    ///
-    /// # Returns
-    ///
-    /// A result containing a boolean indicating the outcome of the verification or an `AcirComposerError` on failure.
-    pub fn verify_proof(&self, proof: &[u8]) -> Result<bool, VerifyError> {
-        Ok(acir::verify_proof(&self.composer_ptr, proof)?)
-    }
-}
-
-/// Implements the Drop trait for `AcirComposer` to ensure proper resource cleanup.
-impl Drop for AcirComposer {
-    fn drop(&mut self) {
-        let _ = acir::delete(self.composer_ptr);
-    }
 }
 
 /// A constant byte slice representing BN254 G2 point. `noir-compiler` when installed will
@@ -162,41 +73,12 @@ const G2_DATA: &[u8; 128] = &[
     218, 106, 95, 228,
 ];
 
-/// Initializes the verifier by creating an `AcirComposer` instance and setting up the SRS (Structured Reference String).
-///
-/// # Returns
-///
-/// This function returns a `Result<AcirComposer, VerifyError>`, which is:
-/// * `Ok(AcirComposer)` if the initialization is successful.
-/// * `Err(VerifyErrorr)` if an error occurs during the initialization process.
 pub fn verifier_init() -> Result<AcirComposer, VerifyError> {
     let acir_composer = AcirComposer::new(&0)?;
     acir::srs_init(&[], 0, G2_DATA)?;
     Ok(acir_composer)
 }
 
-/// Verifies a cryptographic proof using a verification key and public inputs.
-///
-/// # Arguments
-///
-/// * `vk_data` - A vector of bytes representing the verification key.
-/// * `proof` - A vector of bytes representing the cryptographic proof.
-/// * `pubs` - A vector of `PublicInput` representing the public inputs for the proof.
-///
-/// # Returns
-///
-/// This function returns a `Result<bool, VerifyError>`, which is:
-/// * `Ok(true)` if the proof is valid.
-/// * `Ok(false)` if the proof is invalid.
-/// * `Err(VerifyError)` if an error occurs during verification.
-///
-/// # Errors
-///
-/// This function will return an error in the following cases:
-/// * `VerifyError::InvalidProofError` if the length of the proof is not equal to the expected `PROOF_SIZE`.
-/// * `VerifyError::VkError` if there is an error converting the verification key data to a `VerificationKey`.
-/// * `VerifyError::PublicInputError` if the length of the public inputs does not match the expected length specified by the verification key.
-/// * Any other error that occurs during the initialization of the verifier or the verification process.
 pub fn verify(
     vk: &VerificationKey,
     proof: Vec<u8>,
