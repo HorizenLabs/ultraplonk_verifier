@@ -15,9 +15,8 @@
 
 #![allow(non_camel_case_types)]
 
-use byteorder::{BigEndian, ByteOrder};
 use std::collections::HashMap;
-
+use byteorder::{BigEndian, ByteOrder};
 use substrate_bn::{AffineG1, FieldError, Fq, GroupError, G1};
 
 #[derive(Debug, thiserror::Error)]
@@ -132,7 +131,6 @@ impl TryFrom<&[u8]> for VerificationKey {
             return Err(VerificationKeyError::BufferTooShort);
         }
         let circuit_type = BigEndian::read_u32(&data[0..4]);
-        // let circuit_type = read_u32(&data[0..4]);
         if circuit_type != 2 {
             return Err(VerificationKeyError::InvalidCircuitType {
                 value: circuit_type,
@@ -411,4 +409,136 @@ fn write_g1(field: &CommitmentField, g1: G1, data: &mut Vec<u8>) {
     // Use the helpers to append bytes to the data vector
     data.extend_from_slice(&field_to_bytes(field));
     data.extend_from_slice(&g1_to_bytes(g1));
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn vk() -> VerificationKey {
+        let vk_data = hex_literal::hex!(
+            "
+            000000020000001000000002000000170000000449445f31143131b30c289c43
+            efe8c03ccfa57d38ea6d89d23ae31ce5714bc5daa86a768e0dc02c788ed33da5
+            b66872ebf9585c8d7abc1201cd6aabd351107e383f93cd190000000449445f32
+            09222ceb0abf0d5926c9d1400a7ab708cf07d19ee71a92347fb631e2b0c9375b
+            1164057855c0bca748dca0f0a8ab2218edfdb0417c92e08324bc7e4c881acb35
+            0000000449445f330683c3f47a10d184e4a5314cacf421b1a375e3cedc52bae2
+            e35fea224407e0521b0628ad7c8b8fe407b47aa44f6a95090bed34815c57be29
+            a4ebc1f0e78ea3330000000449445f342eea648c8732596b1314fe2a4d2f0536
+            3f0c994e91cecad25835338edee2294f0ab49886c2b94bd0bd3f6ed1dbbe2cb2
+            671d2ae51d31c1210433c3972bb6457800000003515f310559d72d10d15f649c
+            19a3a54823da1de9971da1c46c036a535f8e05986b51ed0983c5a37da6ec6be1
+            de6b5fcbf763b00543bbe145369b2e20cbffd928c2bc3900000003515f321f8c
+            7c65c7699f8f47d53147b6fd620b44c3bb35d444ba1816c9273fed5bec600da9
+            ce654018bf45bae00b147ad9f0d01ca8fce2fdc05c3c51397c58042930930000
+            0003515f331857cd936f36cc4d2b2e2379760695c668b1e217d968f6566d9386
+            023b48706a076ad53e1bae04e3a6b4fd89523b4461e5d8ac96084f13b031f537
+            aa37c8725a00000003515f3402d6fd9e84dbe74b7531e1801405a1c292117b1a
+            17fefe9de0bfd9edf1a84bf9293c6ab3c06a0669af13393a82c60a459a3b2a0b
+            768da45ac7af7f2aec40fc420000000c515f41524954484d4554494322f1e3ed
+            9d38a71a54c92317c905b561750db3a311c0e726f86b022476a0452d180a52fc
+            e7a39700530f19446b84a44d1c725fed57ac09d9b65c98127706a27700000005
+            515f415558155a0f51fec78c33ffceb7364d69d7ac27e570ae50bc180509764e
+            b3fef948151c1c4720bed44a591d97cbc72b6e44b644999713a8d3c66e9054aa
+            5726324c7600000003515f432b45e39cafbc9eb4b7532b63955e8331179def70
+            45f3c2a32f285c041f35c85b0c1930664120ff0ebe7a46d9c19961820ff30910
+            d5fc99206f2a7bcf3bdfa91b0000000a515f454c4c49505449430ad34b5e8db7
+            2a5acf4427546c7294be6ed4f4d252a79059e505f9abc1bdf3ed1e5b26790a26
+            eb340217dd9ad28dbf90a049f42a3852acd45e6f521f24b4900e00000003515f
+            4d09553fb1dd8a17ef4b194224d94cb748f73794a8f4ca87e981ed21a536449c
+            3e2065b2da0647e6320585b9a74542668a12a624e44c0cb653a6dbb82bf97c4e
+            ff00000006515f534f52542cbce7beee3076b78dace04943d69d0d9e28aa6d00
+            e046852781a5f20816645c2bc27ec2e1612ea284b08bcc55b6f2fd915d11bfed
+            bdc0e59de09e5b28952080000000075349474d415f3106e6ea744cb25ae14df9
+            c719ca45e7d4d4cd5fad40776113093355773558c90915a1b5d2ca7ba08ea089
+            b540aef047f161d50e30dcfc3aad8338727de6d805e7000000075349474d415f
+            320815153e6027e9e368821484e8b6a79913354843c84a82a670a26aca65c177
+            d21e04ec963938a63aec007d88ba7faf34ee2ae452ad4512c830157059d5454c
+            7a000000075349474d415f332e17cdcf8ce9b68c25a9f9a6dd7ec5e5741ad583
+            7ccbf7e62185cdb096112a5112cf9344bd74de4361442c5dbb87d90a3ad2b480
+            fb1aeab1eb85b0c44845fe87000000075349474d415f341a15b2bd5cd1f07ed3
+            e286fcd0b98575a9f99b14ce89e501fc76c57701a88ff72babaa5e8cbd97086f
+            2a5adbc849fe44595c1f60b1c80320d9def40c1fffd04f000000075441424c45
+            5f3102c397073c8abce6d4140c9b961209dd783bff1a1cfc999bb29859cfb16c
+            46fc2b7bba2d1efffce0d033f596b4d030750599be670db593af86e1923fe8a1
+            bb18000000075441424c455f322c71c58b66498f903b3bbbda3d05ce8ffb571a
+            4b3cf83533f3f71b99a04f6e6b039dce37f94d1bbd97ccea32a224fe2afaefbc
+            bd080c84dcea90b54f4e0a858f000000075441424c455f3327dc44977efe6b37
+            46a290706f4f7275783c73cfe56847d848fd93b63bf320830a5366266dd7b71a
+            10b356030226a2de0cbf2edc8f085b16d73652b15eced8f5000000075441424c
+            455f34136097d79e1b0ae373255e8760c49900a7588ec4d6809c90bb451005a3
+            de307713dd7515ccac4095302d204f06f0bff2595d77bdf72e4acdb0b0b43969
+            860d980000000a5441424c455f5459504516ff3501369121d410b445929239ba
+            057fe211dad1b706e49a3b55920fac20ec1e190987ebd9cf480f608b82134a00
+            eb8007673c1ed10b834a695adf0068522a000000000000
+        "
+        );
+        VerificationKey::try_from(&vk_data[..]).unwrap()
+    }
+
+    #[test]
+    fn test_vk_serialization() {
+        let vk = vk();
+        let data = vk.as_bytes();
+        let vk2 = VerificationKey::try_from(&data[..]).unwrap();
+        assert_eq!(vk, vk2);
+    }
+
+    #[test]
+    fn test_vk_invalid_point() {
+        let mut vk_data = vk().as_bytes();
+        // from 23 to 55 is the x coordinate of Q_1 point
+        for i in 23..55 {
+            vk_data[i] = 0;
+        }
+        match VerificationKey::try_from(&vk_data[..]) {
+            Err(VerificationKeyError::InvalidGroup { field, .. }) => {
+                assert_eq!(field, "Q_1");
+            }
+            Err(e) => panic!("Test failed with unexpected error: {:?}", e),
+            Ok(_) => panic!("Test failed: Expected error but got success"),
+        }
+    }
+
+    #[test]
+    fn test_vk_invalid_commitment_name() {
+        let mut vk_data = vk().as_bytes();
+        // from 20 to 22 is the commitment name size of Q_1 to Z_1
+        vk_data[20] = 'Z' as u8;
+        match VerificationKey::try_from(&vk_data[..]) {
+            Err(VerificationKeyError::InvalidCommitmentField { value }) => {
+                assert_eq!(value, "Z_1");
+            }
+            Err(e) => panic!("Test failed with unexpected error: {:?}", e),
+            Ok(_) => panic!("Test failed: Expected error but got success"),
+        }
+    }
+
+    #[test]
+    fn test_vk_missing_commitment() {
+        let mut vk_data = vk().as_bytes();
+        // Change the commitment name size of Q_1 to Q_2
+        vk_data[22] = '2' as u8;
+        match VerificationKey::try_from(&vk_data[..]) {
+            Err(VerificationKeyError::MissingCommitmentField { field }) => {
+                assert_eq!(field, CommitmentField::Q_1);
+            }
+            Err(e) => panic!("Test failed with unexpected error: {:?}", e),
+            Ok(_) => panic!("Test failed: Expected error but got success"),
+        }
+    }
+
+    #[test]
+    fn test_vk_recursion_not_supported() {
+        let mut vk_data = vk().as_bytes();
+        // Set contains recursive proof to true
+        vk_data[1716] = 1;
+        match VerificationKey::try_from(&vk_data[..]) {
+            Err(VerificationKeyError::RecursionNotSupported) => {}
+            Err(e) => panic!("Test failed with unexpected error: {:?}", e),
+            Ok(_) => panic!("Test failed: Expected error but got success"),
+        }
+    }
+
 }

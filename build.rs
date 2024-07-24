@@ -15,7 +15,7 @@
 
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,12 +28,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Ensure barretenberg submodule is available
     if !lib_path.exists() {
         Command::new("git")
-            .args(&["submodule", "update", "--init", "--recursive"])
+            .args(["submodule", "update", "--init", "--recursive"])
             .status()?;
     }
 
     // Copy files from assets/code to barretenberg/cpp/src/barretenberg/dsl/acir_proofs
-    for entry in fs::read_dir(&assets_path)? {
+    for entry in fs::read_dir(assets_path)? {
         let entry = entry?;
         let path = entry.path();
         let dest_path = acir_proofs_path.join(path.file_name().unwrap());
@@ -103,7 +103,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn generate_bindings(include_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn generate_bindings(include_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Begin setting up bindgen to generate Rust bindings for C++ code.
     let bindings = bindgen::Builder::default()
         // Provide Clang arguments for C++20 and specify we are working with C++.
@@ -122,7 +122,7 @@ fn generate_bindings(include_path: &PathBuf) -> Result<(), Box<dyn std::error::E
         .allowlist_function("acir_new_acir_composer")
         .allowlist_function("acir_delete_acir_composer")
         .allowlist_function("acir_load_verification_key")
-        .allowlist_function("acir_verify_proof")
+        // .allowlist_function("acir_verify_proof")
         .allowlist_function("rust_acir_verify_proof")
         .allowlist_function("srs_init_srs")
         // Generate the bindings.

@@ -1,4 +1,4 @@
-# ultraplonk_verifier
+# Ultraplonk verifier
 
 This is a verifier for the UltraPlonk zk-SNARK circuit. It is a wrapper around the `barretenberg` library, 
 which is a C++ library for zk-SNARKs. The verifier is written in Rust and uses the `barretenberg` library 
@@ -38,3 +38,12 @@ fn main() {
         Err(e) => println!("Verification failed with error: {:?}", e),
     }
 }
+
+## Building
+
+To build the verifier, run the following command:
+
+```bash
+cargo install cargo-make
+cargo make ci
+```
