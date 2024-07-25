@@ -164,9 +164,8 @@ fn should_verify_proof() {
     let pubs = public_inputs();
     let proof = PROOF;
     let vk = vk();
-
-    let verified = verify(&vk, &proof, &pubs).expect("Failed to verify the proof");
-    assert!(verified);
+    
+    verify(&vk, &proof, &pubs).unwrap();
 }
 
 #[test]
@@ -178,8 +177,13 @@ fn test_verify_invalid_pub_input() {
     let proof = PROOF;
     let vk = vk();
 
-    let verified = verify(&vk, &proof, &pubs).expect("Failed to verify the proof");
-    assert!(!verified);
+    match verify(&vk, &proof, &pubs) {
+        Ok(_) => panic!("Verification should have failed due to incorrect public input"),
+        Err(e) => match e {
+            VerifyError::VerificationFailedError => {} // Proof EC points are not on the curve
+            _ => panic!("Verification failed for an unexpected reason: {:?}", e),
+        },
+    }
 }
 
 #[test]
@@ -217,8 +221,7 @@ fn test_verify_invalid_proof() {
         // - If the EC proof points are on the curve but do not satisfy the constraints, the result is Ok(false).
         // - If the proof EC points are not on the curve, the result is Err(BackendError).
         // Currently, we are taking the easiest way to handle this situation, but we need to improve it.
-        Ok(false) => {} // EC proof points are on the curve but do not satisfy the constraints
-        Ok(true) => panic!("Verification should have failed"),
+        Ok(()) => panic!("Verification should have failed"),
         Err(VerifyError::BackendError(_)) => {} // Proof EC points are not on the curve
         Err(e) => panic!("Verification failed with an unexpected error: {:?}", e),
     }
@@ -239,10 +242,8 @@ fn test_verify_invalid_vk() {
         // - If the proof EC points are not on the curve, the result is Err(BackendError).
         // - If the verification key is invalid, the result is Err(VkError).
         // Currently, we are taking the easiest way to handle this situation, but we need to improve it.
-        Ok(false) => {} // EC proof points are on the curve but do not satisfy the constraints
-        Ok(true) => panic!("Verification should have failed"),
+        Ok(()) => panic!("Verification should have failed"),
         Err(VerifyError::BackendError(_)) => {} // Proof EC points are not on the curve
-        Err(VerifyError::VkError(_)) => {}      // Verification key is invalid
         Err(e) => panic!("Verification failed with an unexpected error: {:?}", e),
     }
 }
