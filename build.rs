@@ -79,10 +79,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if rebuild_needed {
         let mut cfg = cmake::Config::new(&lib_path);
+        let components = [
+            "common",
+            "numeric",
+            "polynomials",
+            "transcript",
+            "ecc",
+            "stdlib_circuit_builders",
+            "plonk",
+            "srs",
+            "crypto_keccak",
+            "crypto_pedersen_hash",
+            "crypto_pedersen_commitment",
+            "execution_trace",
+            "dsl",
+        ];
         cfg.define("CMAKE_BUILD_TYPE", build_type)
             .define("MULTITHREADING", "OFF")
-            .build_target("bb")
             .very_verbose(true);
+        components.iter().for_each(|c| {
+            cfg.build_target(c);
+        });
         if !cfg!(target_os = "macos") {
             cfg.define("TARGET_ARCH", "native");
         }
@@ -92,7 +109,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Link the C++ standard library and custom libraries
         println!("cargo:rustc-link-search=native={}/build/lib", dst.display());
-        println!("cargo:rustc-link-lib=static=barretenberg");
+        components.iter().for_each(|c| 
+            println!("cargo:rustc-link-lib=static={c}")
+        );
         println!("cargo:rustc-link-lib=static=env");
         if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
             println!("cargo:rustc-link-lib=c++");
@@ -103,7 +122,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Generate Rust bindings for the C++ headers
         generate_bindings(&lib_path.join("src"))?;
     }
-
     Ok(())
 }
 
