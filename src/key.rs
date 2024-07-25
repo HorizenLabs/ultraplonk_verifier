@@ -15,8 +15,8 @@
 
 #![allow(non_camel_case_types)]
 
-use std::collections::HashMap;
 use byteorder::{BigEndian, ByteOrder};
+use std::collections::HashMap;
 use substrate_bn::{AffineG1, FieldError, Fq, GroupError, G1};
 
 #[derive(Debug, thiserror::Error)]
@@ -540,5 +540,4 @@ mod test {
             Ok(_) => panic!("Test failed: Expected error but got success"),
         }
     }
-
 }
