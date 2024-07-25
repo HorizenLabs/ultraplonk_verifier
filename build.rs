@@ -109,9 +109,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Link the C++ standard library and custom libraries
         println!("cargo:rustc-link-search=native={}/build/lib", dst.display());
-        components.iter().for_each(|c| 
-            println!("cargo:rustc-link-lib=static={c}")
-        );
+        components
+            .iter()
+            .for_each(|c| println!("cargo:rustc-link-lib=static={c}"));
         println!("cargo:rustc-link-lib=static=env");
         if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
             println!("cargo:rustc-link-lib=c++");
