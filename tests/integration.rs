@@ -164,7 +164,7 @@ fn should_verify_proof() {
     let pubs = public_inputs();
     let proof = PROOF;
     let vk = vk();
-    
+
     verify(&vk, &proof, &pubs).unwrap();
 }
 
