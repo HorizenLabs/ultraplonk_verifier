@@ -18,6 +18,40 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const BASE_ENV_CACHE: &str = "BARRETENBERG_LIB_DIR";
+
+#[derive(Clone, Copy, Debug)]
+enum BuildInfo {
+    Debug,
+    Release,
+    Unknown,
+}
+
+impl BuildInfo {
+    pub fn from_env_var() -> Self {
+        match env::var("PROFILE").as_deref() {
+            Ok("release") => BuildInfo::Release,
+            Ok("debug") => BuildInfo::Debug,
+            _ => BuildInfo::Unknown,
+        }
+    }
+
+    pub fn cpp_build_type(&self) -> &'static str {
+        match self {
+            BuildInfo::Release => "RelWithAssert",
+            BuildInfo::Debug | BuildInfo::Unknown => "RelWithDebInfo",
+        }
+    }
+
+    pub fn env_cache_suffix(&self) -> &'static [&'static str] {
+        match self {
+            BuildInfo::Release => &["_RELEASE"],
+            BuildInfo::Debug => &["_DEBUG", ""],
+            BuildInfo::Unknown => &[""],
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up paths
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
@@ -62,10 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Determine the Cargo build type
-    let build_type = match env::var("PROFILE").as_deref() {
-        Ok("production") | Ok("release") => "RelWithAssert",
-        _ => "RelWithDebInfo",
-    };
+    let build_info = BuildInfo::from_env_var();
 
     // Check if we need to rebuild using CMake
     let cmake_build_dir = lib_path.join("build");
@@ -78,7 +109,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .exists();
 
     if rebuild_needed {
-        let mut cfg = cmake::Config::new(&lib_path);
         let components = [
             "common",
             "numeric",
@@ -94,21 +124,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "execution_trace",
             "dsl",
         ];
-        cfg.define("CMAKE_BUILD_TYPE", build_type)
-            .define("MULTITHREADING", "OFF")
-            .very_verbose(true);
-        components.iter().for_each(|c| {
-            cfg.build_target(c);
-        });
-        if !cfg!(target_os = "macos") {
-            cfg.define("TARGET_ARCH", "native");
-        }
 
-        // Build using the cmake crate
-        let dst = cfg.build();
+        let lib_dirs = resolve_build_cache_dir(build_info).unwrap_or_else(|| {
+            let dst = compile_static_libs(&lib_path, build_info, &components);
+            format!("{}/build/lib", dst.display())
+        });
 
         // Link the C++ standard library and custom libraries
-        println!("cargo:rustc-link-search=native={}/build/lib", dst.display());
+        println!("cargo:rustc-link-search=native={lib_dirs}");
         components
             .iter()
             .for_each(|c| println!("cargo:rustc-link-lib=static={c}"));
@@ -123,6 +146,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         generate_bindings(&lib_path.join("src"))?;
     }
     Ok(())
+}
+
+fn resolve_build_cache_dir(build_info: BuildInfo) -> Option<String> {
+    build_info
+        .env_cache_suffix()
+        .into_iter()
+        .map(|s| format!("{BASE_ENV_CACHE}{s}"))
+        .map(env::var)
+        .filter_map(Result::ok)
+        .filter(|s| PathBuf::from(s).exists())
+        .next()
+}
+
+fn compile_static_libs(lib_path: &PathBuf, build_info: BuildInfo, components: &[&str]) -> PathBuf {
+    let mut cfg = cmake::Config::new(lib_path);
+    cfg.define("CMAKE_BUILD_TYPE", build_info.cpp_build_type())
+        .define("MULTITHREADING", "OFF")
+        .very_verbose(true);
+    components.into_iter().for_each(|c| {
+        cfg.build_target(c);
+    });
+    if !cfg!(target_os = "macos") {
+        cfg.define("TARGET_ARCH", "native");
+    }
+
+    // Build using the cmake crate
+    cfg.build()
 }
 
 fn generate_bindings(include_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
