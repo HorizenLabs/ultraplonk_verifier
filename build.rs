@@ -78,13 +78,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .exists();
 
     if rebuild_needed {
-        // Build using the cmake crate
-        let dst = cmake::Config::new(&lib_path)
-            .configure_arg(format!("-DCMAKE_BUILD_TYPE={}", build_type))
-            .configure_arg("-DMULTITHREADING=OFF")
+        let mut cfg = cmake::Config::new(&lib_path);
+        cfg.define("CMAKE_BUILD_TYPE", build_type)
+            .define("MULTITHREADING", "OFF")
             .build_target("bb")
-            .very_verbose(true)
-            .build();
+            .very_verbose(true);
+        if !cfg!(target_os = "macos") {
+            cfg.define("TARGET_ARCH", "native");
+        }
+
+        // Build using the cmake crate
+        let dst = cfg.build();
 
         // Link the C++ standard library and custom libraries
         println!("cargo:rustc-link-search=native={}/build/lib", dst.display());
