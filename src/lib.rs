@@ -44,20 +44,16 @@ pub enum VerifyError {
     BackendError(#[from] AcirBackendError),
 
     /// Error related to the verification key.
-    #[error("Verification Key Error")]
-    VkError(VerificationKeyError),
+    #[error("Key Error")]
+    KeyError(VerificationKeyError),
 
-    /// Error indicating an incorrect number of public inputs.
-    ///
-    /// # Fields
-    /// - `expected`: The expected number of public inputs.
-    /// - `actual`: The actual number of public inputs provided.
-    #[error("Invalid public input length: {actual}, expected: {expected}")]
-    PublicInputNumberError { expected: u32, actual: u32 },
+    /// Error related to the public inputs.
+    #[error("Invalid public input: {message}")]
+    PublicInputError { message: String },
 
     /// Error indicating verification failed.
     #[error("Verification failed")]
-    VerificationFailedError,
+    VerificationError,
 }
 
 /// Verifies a cryptographic proof against a verification key and public inputs.
@@ -74,18 +70,16 @@ pub enum VerifyError {
 /// # Returns
 ///
 /// A `Result` which is:
-/// - `Ok(true)` if the proof is valid.
-/// - `Ok(false)` if the proof is invalid but the EC proof points are on the curve.
+/// - `Ok(())` if the proof is valid.
 /// - `Err(VerifyError)` if an error occurs during verification.
 ///
 /// # Errors
 ///
 /// This function can return the following errors:
 ///
-/// - `VerifyError::InvalidProofLengthError`: If the length of the proof does not match the expected length.
-/// - `VerifyError::PublicInputNumberError`: If the number of public inputs does not match the expected number.
+/// - `VerifyError::PublicInputError`: If there is an error related to public inputs.
 /// - `VerifyError::BackendError`: If there is an error originating from the backend.
-/// - `VerifyError::VkError`: If there is an error related to the verification key.
+/// - `VerifyError::KeyError`: If there is an error related to the verification key.
 ///
 /// # Examples
 ///
@@ -133,7 +127,7 @@ pub fn verify(
     acir_composer.load_verification_key(&vk.as_bytes())?;
     match acir_composer.verify_proof(&proof_data)? {
         true => Ok(()),
-        false => Err(VerifyError::VerificationFailedError),
+        false => Err(VerifyError::VerificationError),
     }
 }
 
@@ -148,9 +142,12 @@ fn check_public_input_number(
     pubs: &[PublicInput],
 ) -> Result<(), VerifyError> {
     if vk.num_public_inputs != pubs.len() as u32 {
-        Err(VerifyError::PublicInputNumberError {
-            expected: vk.num_public_inputs,
-            actual: pubs.len() as u32,
+        Err(VerifyError::PublicInputError {
+            message: format!(
+                "Invalid number of public inputs: expected {}, but got {}.",
+                vk.num_public_inputs,
+                pubs.len()
+            ),
         })
     } else {
         Ok(())

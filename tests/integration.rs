@@ -180,7 +180,7 @@ fn test_verify_invalid_pub_input() {
     match verify(&vk, &proof, &pubs) {
         Ok(_) => panic!("Verification should have failed due to incorrect public input"),
         Err(e) => match e {
-            VerifyError::VerificationFailedError => {} // Proof EC points are not on the curve
+            VerifyError::VerificationError => {} // Proof EC points are not on the curve
             _ => panic!("Verification failed for an unexpected reason: {:?}", e),
         },
     }
@@ -198,9 +198,11 @@ fn test_verify_invalid_pub_input_length() {
     match verify(&vk, &proof, &pubs) {
         Ok(_) => panic!("Verification should have failed due to incorrect public input length"),
         Err(e) => match e {
-            VerifyError::PublicInputNumberError { expected, actual } => {
-                assert_eq!(expected, 2);
-                assert_eq!(actual, 1);
+            VerifyError::PublicInputError { message } => {
+                assert_eq!(
+                    message,
+                    "Invalid number of public inputs: expected 2, but got 1."
+                );
             }
             _ => panic!("Verification failed for an unexpected reason: {:?}", e),
         },
@@ -218,8 +220,9 @@ fn test_verify_invalid_proof() {
 
     match verify(&vk, &proof, &pubs) {
         // We have a very ambiguous situation here:
-        // - If the EC proof points are on the curve but do not satisfy the constraints, the result is Ok(false).
+        // - If the constrains are not satisfied, the result is Err(VerificationError).
         // - If the proof EC points are not on the curve, the result is Err(BackendError).
+        // - If the verification key is invalid, the result is Err(KeyError).
         // Currently, we are taking the easiest way to handle this situation, but we need to improve it.
         Ok(()) => panic!("Verification should have failed"),
         Err(VerifyError::BackendError(_)) => {} // Proof EC points are not on the curve
@@ -238,9 +241,9 @@ fn test_verify_invalid_vk() {
 
     match verify(&vk, &proof, &pubs) {
         // We have a very ambiguous situation here:
-        // - If the EC proof points are on the curve but do not satisfy the constraints, the result is Ok(false).
+        // - If the constrains are not satisfied, the result is Err(VerificationError).
         // - If the proof EC points are not on the curve, the result is Err(BackendError).
-        // - If the verification key is invalid, the result is Err(VkError).
+        // - If the verification key is invalid, the result is Err(KeyError).
         // Currently, we are taking the easiest way to handle this situation, but we need to improve it.
         Ok(()) => panic!("Verification should have failed"),
         Err(VerifyError::BackendError(_)) => {} // Proof EC points are not on the curve
