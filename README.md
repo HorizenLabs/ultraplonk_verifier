@@ -8,6 +8,7 @@ through FFI (Foreign Function Interface).
 
 ```rust
 use ultraplonk_verifier::verify;
+use ultraplonk_verifier::Proof;
 use ultraplonk_verifier::PublicInput;
 use ultraplonk_verifier::VerificationKey;
 
@@ -17,7 +18,7 @@ fn load_verification_key() -> VerificationKey {
     unimplemented!()
 }
 
-fn load_proof_data() -> Vec<u8> {
+fn load_proof_data() -> Proof {
     // Implement your logic to load proof data
     unimplemented!()
 }

@@ -15,9 +15,9 @@
 
 use serial_test::serial;
 use substrate_bn::Fq;
-use ultraplonk_verifier::{verify, PublicInput, VerificationKey, VerifyError};
+use ultraplonk_verifier::{verify, Proof, PublicInput, VerificationKey, VerifyError};
 
-static PROOF: [u8; 2144] = hex_literal::hex!(
+static PROOF: Proof = hex_literal::hex!(
     "
         0520122e5831cc97fd2c08ab73ea798207d9ee8064ab401cc0722a2575f093e0
         11f9bdeccd1f282b7f6c8cffeafb68dd1a0fe3e8163e53ba0a43e38455025fc8
