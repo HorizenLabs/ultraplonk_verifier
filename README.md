@@ -34,8 +34,7 @@ fn main() {
     let pubs = load_public_inputs();
 
     match verify(&vk, &proof, &pubs) {
-        Ok(true) => println!("Proof is valid"),
-        Ok(false) => println!("Proof is invalid"),
+        Ok(()) => println!("Proof is valid"),
         Err(e) => println!("Verification failed with error: {:?}", e),
     }
 }

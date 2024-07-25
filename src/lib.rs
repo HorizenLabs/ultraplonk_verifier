@@ -40,11 +40,11 @@ pub type PublicInput = [u8; 32];
 #[derive(thiserror::Error, Debug)]
 pub enum VerifyError {
     /// Error originating from the ACIR backend.
-    #[error("BackendError")]
+    #[error("Backend Error")]
     BackendError(#[from] AcirBackendError),
 
     /// Error related to the verification key.
-    #[error("VerificationKeyError")]
+    #[error("Verification Key Error")]
     VkError(VerificationKeyError),
 
     /// Error indicating an incorrect number of public inputs.
@@ -54,6 +54,10 @@ pub enum VerifyError {
     /// - `actual`: The actual number of public inputs provided.
     #[error("Invalid public input length: {actual}, expected: {expected}")]
     PublicInputNumberError { expected: u32, actual: u32 },
+
+    /// Error indicating verification failed.
+    #[error("Verification failed")]
+    VerificationFailedError,
 }
 
 /// Verifies a cryptographic proof against a verification key and public inputs.
@@ -112,8 +116,7 @@ pub enum VerifyError {
 /// let pubs = load_public_inputs();
 ///
 /// match verify(&vk, &proof, &pubs) {
-///     Ok(true) => println!("Proof is valid"),
-///     Ok(false) => println!("Proof is invalid"),
+///     Ok(()) => println!("Proof is valid"),
 ///     Err(e) => println!("Verification failed with error: {:?}", e),
 /// }
 /// ```
@@ -121,15 +124,17 @@ pub fn verify(
     vk: &VerificationKey,
     proof: &Proof,
     pubs: &[PublicInput],
-) -> Result<bool, VerifyError> {
+) -> Result<(), VerifyError> {
     check_public_input_number(vk, pubs)?;
 
     let proof_data = concatenate_proof_data(pubs, proof);
 
     let acir_composer = verifier_init()?;
     acir_composer.load_verification_key(&vk.as_bytes())?;
-    let verified = acir_composer.verify_proof(&proof_data)?;
-    Ok(verified)
+    match acir_composer.verify_proof(&proof_data)? {
+        true => Ok(()),
+        false => Err(VerifyError::VerificationFailedError),
+    }
 }
 
 fn verifier_init() -> Result<AcirComposer, VerifyError> {
@@ -199,6 +204,6 @@ mod test {
         let vk = VerificationKey::try_from(vk_data.as_slice())
             .expect("Failed to parse verification key");
 
-        assert!(verify(&vk, &proof, &pubs).expect("Verification failed"));
+        verify(&vk, &proof, &pubs).unwrap();
     }
 }
