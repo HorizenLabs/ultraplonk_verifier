@@ -151,12 +151,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn resolve_build_cache_dir(build_info: BuildInfo) -> Option<String> {
     build_info
         .env_cache_suffix()
-        .into_iter()
+        .iter()
         .map(|s| format!("{BASE_ENV_CACHE}{s}"))
         .map(env::var)
         .filter_map(Result::ok)
-        .filter(|s| PathBuf::from(s).exists())
-        .next()
+        .find(|s| PathBuf::from(s).exists())
 }
 
 fn compile_static_libs(lib_path: &PathBuf, build_info: BuildInfo, components: &[&str]) -> PathBuf {
@@ -164,7 +163,7 @@ fn compile_static_libs(lib_path: &PathBuf, build_info: BuildInfo, components: &[
     cfg.define("CMAKE_BUILD_TYPE", build_info.cpp_build_type())
         .define("MULTITHREADING", "OFF")
         .very_verbose(true);
-    components.into_iter().for_each(|c| {
+    components.iter().for_each(|c| {
         cfg.build_target(c);
     });
     if !cfg!(target_os = "macos") {
