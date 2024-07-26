@@ -8,7 +8,7 @@
             "type": "lldb",
             "request": "launch",
             "name": "noir-cli key-convert",
-            "program": "${workspaceFolder}/target/debug/noir_cli",
+            "program": "${workspaceFolder}/target/debug/noir-cli",
             "args": [
                 "--verbose",
                 "key",
@@ -21,13 +21,27 @@
             "type": "lldb",
             "request": "launch",
             "name": "noir-cli proof-convert",
-            "program": "${workspaceFolder}/target/debug/noir_cli",
+            "program": "${workspaceFolder}/target/debug/noir-cli",
             "args": [
                 "--verbose",
                 "proof-data",
                 "--input-json", "./resources/proves/proof.json",
                 "--output-proof", "./target/proof",
-                "--output-pubs", "./target/pub",
+                "--output-pubs", "./target/pubs",
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "noir-cli verifier",
+            "program": "${workspaceFolder}/target/debug/noir-cli",
+            "args": [
+                "--verbose",
+                "verify",
+                "--key", "./target/vk",
+                "--proof", "./target/proof",
+                "--pubs", "./target/pubs",
             ],
             "cwd": "${workspaceFolder}"
         },
