@@ -16,6 +16,7 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs::File;
+use std::path::PathBuf;
 
 use crate::cli::Commands;
 use crate::utils::{encode_hex, encode_pub_inputs, out_file};
@@ -34,38 +35,48 @@ pub fn process_proof_data(command: &Commands, verbose: bool) -> Result<()> {
         output_pubs,
     } = command
     {
-        if verbose {
-            println!("Reading input JSON file: {:?}", input_json);
-        }
-
-        let json_path = input_json;
-        let proof_data = read_json_file(json_path)?;
-
-        let mut proof_buf = vec![];
-        let mut pub_inputs_buf = vec![];
-
-        if verbose {
-            println!("Encoding proof");
-        }
-
-        encode_hex(&proof_data.proof, &mut proof_buf)?;
-
-        if verbose {
-            println!("Encoding public inputs");
-        }
-
-        encode_pub_inputs(&proof_data.verify_inputs, &mut pub_inputs_buf)?;
-
-        if verbose {
-            println!("Writing output files");
-        }
-
-        out_file(output_proof.as_ref())?.write_all(&proof_buf)?;
-        out_file(output_pubs.as_ref())?.write_all(&pub_inputs_buf)?;
-
-        return Ok(());
+        parse_proof_data(input_json, output_proof, output_pubs, verbose)
+    } else {
+        return Err(anyhow::anyhow!("Invalid command"));
     }
-    Err(anyhow::anyhow!("Invalid command"))
+}
+
+fn parse_proof_data(
+    input_json: &PathBuf,
+    output_proof: &Option<PathBuf>,
+    output_pubs: &Option<PathBuf>,
+    verbose: bool,
+) -> Result<()> {
+    if verbose {
+        println!("Reading input JSON file: {:?}", input_json);
+    }
+
+    let json_path = input_json;
+    let proof_data = read_json_file(json_path)?;
+
+    let mut proof_buf = vec![];
+    let mut pub_inputs_buf = vec![];
+
+    if verbose {
+        println!("Encoding proof");
+    }
+
+    encode_hex(&proof_data.proof, &mut proof_buf)?;
+
+    if verbose {
+        println!("Encoding public inputs");
+    }
+
+    encode_pub_inputs(&proof_data.verify_inputs, &mut pub_inputs_buf)?;
+
+    if verbose {
+        println!("Writing output files");
+    }
+
+    out_file(output_proof.as_ref())?.write_all(&proof_buf)?;
+    out_file(output_pubs.as_ref())?.write_all(&pub_inputs_buf)?;
+
+    return Ok(());
 }
 
 fn read_json_file(path: &std::path::PathBuf) -> Result<ProofData> {

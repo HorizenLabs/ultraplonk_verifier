@@ -42,7 +42,7 @@ fn verify(key: &PathBuf, proof: &PathBuf, pubs: &PathBuf, verbose: bool) -> Resu
     let vk = VerificationKey::try_from(&key_data[..])
         .with_context(|| format!("Failed to parse verification key from file: {:?}", key))?;
 
-    // Read and process the input file
+    // Read and process the proof file
     let proof = read_proof_file(proof)
         .with_context(|| format!("Failed to read proof file: {:?}", proof))?;
 
@@ -50,14 +50,13 @@ fn verify(key: &PathBuf, proof: &PathBuf, pubs: &PathBuf, verbose: bool) -> Resu
     let pubs =
         std::fs::read(pubs).with_context(|| format!("Failed to read key file: {:?}", pubs))?;
 
-    // Convert input data into a slice of [[u8; 32]]
+    // Convert input data into a slice of [PublicInput]
     let pubs = convert_to_pub_inputs(&pubs)?;
 
     if verbose {
         println!("Verifying proof...");
     }
 
-    // Perform verification logic (pseudo-code)
     match verify_proof(&vk, &proof, &pubs) {
         Ok(_) => {
             println!("Proof is valid");

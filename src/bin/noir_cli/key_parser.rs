@@ -15,6 +15,7 @@
 
 use anyhow::{Context, Result};
 use std::io::Write;
+use std::path::PathBuf;
 use ultraplonk_verifier::{CommitmentField, VerificationKey};
 
 use crate::cli::Commands;
@@ -22,30 +23,37 @@ use crate::utils::{encode_str, encode_u32, encode_value_as_u256, encode_value_as
 
 pub fn process_verification_key(command: &Commands, verbose: bool) -> Result<()> {
     if let Commands::Key { input, output } = command {
-        if verbose {
-            println!("Reading input file: {:?}", input);
-        }
-
-        let vk_file = std::fs::read_to_string(&input)
-            .with_context(|| format!("Failed to read input file: {:?}", input))?;
-        let mut vk_out = out_file(output.as_ref())?;
-
-        if verbose {
-            println!("Parsing Solidity file");
-        }
-
-        let vk = parse_solidity_file(&vk_file)
-            .with_context(|| format!("Failed to parse Solidity file: {:?}", input))?;
-
-        if verbose {
-            println!("Writing output");
-        }
-
-        vk_out.write_all(&vk.as_bytes())?;
-        Ok(())
+        parse_key_file(input, output.clone(), verbose)
     } else {
         Err(anyhow::anyhow!("Invalid command"))
     }
+}
+
+fn parse_key_file(input: &PathBuf, output: Option<PathBuf>, verbose: bool) -> Result<()> {
+    if verbose {
+        println!("Reading input file: {:?}", input);
+    }
+
+    let vk_file = std::fs::read_to_string(&input)
+        .with_context(|| format!("Failed to read input file: {:?}", input))?;
+    let mut vk_out = out_file(output.as_ref())?;
+
+    if verbose {
+        println!("Parsing Solidity file");
+    }
+
+    let vk = parse_solidity_file(&vk_file)
+        .with_context(|| format!("Failed to parse Solidity file: {:?}", input))?;
+
+    if verbose {
+        println!("Writing output");
+    }
+
+    vk_out
+        .write_all(&vk.as_bytes())
+        .with_context(|| format!("Failed to write output file: {:?}", output))?;
+
+    Ok(())
 }
 
 fn parse_solidity_file(vk_file: &str) -> Result<VerificationKey> {
