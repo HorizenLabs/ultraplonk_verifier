@@ -22,6 +22,8 @@ mod srs;
 use acir::AcirBackendError;
 /// The ACIR composer.
 use acir::AcirComposer;
+/// The commitment fields.
+pub use key::CommitmentField;
 /// The verification key.
 pub use key::VerificationKey;
 /// The verification key error.

@@ -1,0 +1,117 @@
+use anyhow::{Context, Result};
+use std::io::Write;
+use ultraplonk_verifier::{CommitmentField, VerificationKey};
+
+use crate::cli::Commands;
+use crate::utils::{encode_str, encode_u32, encode_value_as_u256, encode_value_as_u32, out_file};
+
+pub fn process_verification_key(command: &Commands, verbose: bool) -> Result<()> {
+    if let Commands::Key { input, output } = command {
+
+        if verbose {
+            println!("Reading input file: {:?}", input);
+        }
+
+        let vk_file = std::fs::read_to_string(&input)
+            .with_context(|| format!("Failed to read input file: {:?}", input))?;
+        let mut vk_out = out_file(output.as_ref())?;
+
+        if verbose {
+            println!("Parsing Solidity file");
+        }
+
+        let vk = parse_solidity_file(&vk_file)
+            .with_context(|| format!("Failed to parse Solidity file: {:?}", input))?;
+
+            if verbose {
+                println!("Writing output");
+            }
+
+        vk_out.write_all(&vk.as_bytes())?;
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("Invalid command"))
+    }
+}
+
+fn parse_solidity_file(vk_file: &str) -> Result<VerificationKey> {
+    let mut buf = [0u8; 1719];
+    let mut offset = 0;
+    encode_u32(0x02, &mut buf, &mut offset); // circuit_type
+
+    encode_value_as_u32(vk_file, "0x00", &mut buf, &mut offset)?; // circuit_size
+    encode_value_as_u32(vk_file, "0x20", &mut buf, &mut offset)?; // num_pub_inputs
+
+    encode_u32(23, &mut buf, &mut offset); // num of commitments
+    encode_str(&CommitmentField::Q_1.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x80", &mut buf, &mut offset)?; // Q1.x
+    encode_value_as_u256(vk_file, "0xa0", &mut buf, &mut offset)?; // Q1.y
+    encode_str(&CommitmentField::Q_2.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0xc0", &mut buf, &mut offset)?; // Q2.x
+    encode_value_as_u256(vk_file, "0xe0", &mut buf, &mut offset)?; // Q2.y
+    encode_str(&CommitmentField::Q_3.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x100", &mut buf, &mut offset)?; // Q3.x
+    encode_value_as_u256(vk_file, "0x120", &mut buf, &mut offset)?; // Q3.y
+    encode_str(&CommitmentField::Q_4.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x140", &mut buf, &mut offset)?; // Q4.x
+    encode_value_as_u256(vk_file, "0x160", &mut buf, &mut offset)?; // Q4.y
+    encode_str(&CommitmentField::Q_M.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x180", &mut buf, &mut offset)?; // QM.x
+    encode_value_as_u256(vk_file, "0x1a0", &mut buf, &mut offset)?; // QM.y
+    encode_str(&CommitmentField::Q_C.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x1c0", &mut buf, &mut offset)?; // QC.x
+    encode_value_as_u256(vk_file, "0x1e0", &mut buf, &mut offset)?; // QC.y
+    encode_str(&CommitmentField::Q_ARITHMETIC.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x200", &mut buf, &mut offset)?; // QArithmetic.x
+    encode_value_as_u256(vk_file, "0x220", &mut buf, &mut offset)?; // QArithmetic.y
+    encode_str(&CommitmentField::Q_SORT.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x240", &mut buf, &mut offset)?; // QSort.x
+    encode_value_as_u256(vk_file, "0x260", &mut buf, &mut offset)?; // QSort.y
+    encode_str(&CommitmentField::Q_ELLIPTIC.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x280", &mut buf, &mut offset)?; // QElliptic.x
+    encode_value_as_u256(vk_file, "0x2a0", &mut buf, &mut offset)?; // QElliptic.y
+    encode_str(&CommitmentField::Q_AUX.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x2c0", &mut buf, &mut offset)?; // QAux.x
+    encode_value_as_u256(vk_file, "0x2e0", &mut buf, &mut offset)?; // QAux.y
+    encode_str(&CommitmentField::SIGMA_1.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x300", &mut buf, &mut offset)?; // Sigma1.x
+    encode_value_as_u256(vk_file, "0x320", &mut buf, &mut offset)?; // Sigma1.y
+    encode_str(&CommitmentField::SIGMA_2.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x340", &mut buf, &mut offset)?; // Sigma2.x
+    encode_value_as_u256(vk_file, "0x360", &mut buf, &mut offset)?; // Sigma2.y
+    encode_str(&CommitmentField::SIGMA_3.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x380", &mut buf, &mut offset)?; // Sigma3.x
+    encode_value_as_u256(vk_file, "0x3a0", &mut buf, &mut offset)?; // Sigma3.y
+    encode_str(&CommitmentField::SIGMA_4.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x3c0", &mut buf, &mut offset)?; // Sigma4.x
+    encode_value_as_u256(vk_file, "0x3e0", &mut buf, &mut offset)?; // Sigma4.y
+    encode_str(&CommitmentField::TABLE_1.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x400", &mut buf, &mut offset)?; // Table1.x
+    encode_value_as_u256(vk_file, "0x420", &mut buf, &mut offset)?; // Table1.y
+    encode_str(&CommitmentField::TABLE_2.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x440", &mut buf, &mut offset)?; // Table2.x
+    encode_value_as_u256(vk_file, "0x460", &mut buf, &mut offset)?; // Table2.y
+    encode_str(&CommitmentField::TABLE_3.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x480", &mut buf, &mut offset)?; // Table3.x
+    encode_value_as_u256(vk_file, "0x4a0", &mut buf, &mut offset)?; // Table3.y
+    encode_str(&CommitmentField::TABLE_4.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x4c0", &mut buf, &mut offset)?; // Table4.x
+    encode_value_as_u256(vk_file, "0x4e0", &mut buf, &mut offset)?; // Table4.y
+    encode_str(&CommitmentField::TABLE_TYPE.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x500", &mut buf, &mut offset)?; // TableType.x
+    encode_value_as_u256(vk_file, "0x520", &mut buf, &mut offset)?; // TableType.y
+    encode_str(&CommitmentField::ID_1.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x540", &mut buf, &mut offset)?; // ID1.x
+    encode_value_as_u256(vk_file, "0x560", &mut buf, &mut offset)?; // ID1.y
+    encode_str(&CommitmentField::ID_2.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x580", &mut buf, &mut offset)?; // ID2.x
+    encode_value_as_u256(vk_file, "0x5a0", &mut buf, &mut offset)?; // ID2.y
+    encode_str(&CommitmentField::ID_3.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x5c0", &mut buf, &mut offset)?; // ID3.x
+    encode_value_as_u256(vk_file, "0x5e0", &mut buf, &mut offset)?; // ID3.y
+    encode_str(&CommitmentField::ID_4.str(), &mut buf, &mut offset)?;
+    encode_value_as_u256(vk_file, "0x600", &mut buf, &mut offset)?; // ID4.x
+    encode_value_as_u256(vk_file, "0x620", &mut buf, &mut offset)?; // ID4.y
+
+    Ok(VerificationKey::try_from(&buf[..])?)
+}
