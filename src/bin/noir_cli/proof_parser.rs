@@ -13,12 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::fs::File;
 use std::path::PathBuf;
 
 use crate::cli::Commands;
+use crate::errors::CliError;
 use crate::utils::{encode_hex, encode_pub_inputs, out_file};
 
 #[derive(Deserialize, Debug)]
@@ -28,7 +28,7 @@ struct ProofData {
     verify_inputs: Vec<String>,
 }
 
-pub fn process_proof_data(command: &Commands, verbose: bool) -> Result<()> {
+pub fn process_proof_data(command: &Commands, verbose: bool) -> Result<(), CliError> {
     if let Commands::ProofData {
         input_json,
         output_proof,
@@ -37,7 +37,7 @@ pub fn process_proof_data(command: &Commands, verbose: bool) -> Result<()> {
     {
         parse_proof_data(input_json, output_proof, output_pubs, verbose)
     } else {
-        return Err(anyhow::anyhow!("Invalid command"));
+        return Err(CliError::CliError("Invalid command".to_string()));
     }
 }
 
@@ -46,7 +46,7 @@ fn parse_proof_data(
     output_proof: &Option<PathBuf>,
     output_pubs: &Option<PathBuf>,
     verbose: bool,
-) -> Result<()> {
+) -> Result<(), CliError> {
     if verbose {
         println!("Reading input JSON file: {:?}", input_json);
     }
@@ -73,16 +73,21 @@ fn parse_proof_data(
         println!("Writing output files");
     }
 
-    out_file(output_proof.as_ref())?.write_all(&proof_buf)?;
-    out_file(output_pubs.as_ref())?.write_all(&pub_inputs_buf)?;
+    out_file(output_proof.as_ref())?
+        .write_all(&proof_buf)
+        .map_err(|_| CliError::CliError("Failed to write output file".to_string()))?;
+    out_file(output_pubs.as_ref())?
+        .write_all(&pub_inputs_buf)
+        .map_err(|_| CliError::CliError("Failed to write output file".to_string()))?;
 
     return Ok(());
 }
 
-fn read_json_file(path: &std::path::PathBuf) -> Result<ProofData> {
-    let file = File::open(path).with_context(|| format!("Failed to open JSON file: {:?}", path))?;
+fn read_json_file(path: &std::path::PathBuf) -> Result<ProofData, CliError> {
+    let file = File::open(path)
+        .map_err(|_| CliError::CliError(format!("Failed to open JSON file: {:?}", path)))?;
     let reader = std::io::BufReader::new(file);
     let proof_data: ProofData = serde_json::from_reader(reader)
-        .with_context(|| format!("Failed to parse JSON file: {:?}", path))?;
+        .map_err(|_| CliError::CliError("Failed to parse JSON file".to_string()))?;
     Ok(proof_data)
 }

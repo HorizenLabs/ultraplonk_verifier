@@ -17,6 +17,7 @@ use anyhow::Result;
 use clap::Parser;
 
 mod cli;
+mod errors;
 mod key_parser;
 mod proof_parser;
 mod utils;
