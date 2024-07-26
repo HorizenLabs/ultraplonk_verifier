@@ -242,7 +242,7 @@ pub enum CommitmentField {
 }
 
 impl CommitmentField {
-    fn str(&self) -> &'static str {
+    pub fn str(&self) -> &'static str {
         match self {
             CommitmentField::Q_1 => "Q_1",
             CommitmentField::Q_2 => "Q_2",
