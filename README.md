@@ -40,6 +40,24 @@ fn main() {
 }
 ```
 
+## Bins
+
+The crate provides a binary that can be used to verify proofs. The binary reads the verification key, proof, and public inputs from files. The binary can be used as follows:
+
+### Compile and install the binary
+
+```bash
+cargo install --features bins --path .
+```
+
+### Run the binary
+
+```bash
+noir-cli key --input ./resources/proves/verifier.sol --output ./target/vk.bin
+noir-cli proof-data --input-json ./resources/proves/proof.json --output-proof ./target/proof.bin --output-pubs ./target/pubs.bin
+noir-cli verify --key ./target/vk.bin --proof ./target/proof.bin --pubs ./target/pubs.bin
+```
+
 ## Building
 
 To build the verifier, run the following command:
