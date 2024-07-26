@@ -5,6 +5,33 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "lldb",
+            "request": "launch",
+            "name": "noir-cli key-convert",
+            "program": "${workspaceFolder}/target/debug/noir_cli",
+            "args": [
+                "--verbose",
+                "key",
+                "--input", "./resources/proves/verifier.sol",
+                "--output", "./target/vk",
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "noir-cli proof-convert",
+            "program": "${workspaceFolder}/target/debug/noir_cli",
+            "args": [
+                "--verbose",
+                "proof-data",
+                "--input-json", "./resources/proves/proof.json",
+                "--output-proof", "./target/proof",
+                "--output-pubs", "./target/pub",
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
             "name": "(lldb) prove & verify",
             "type": "lldb",
             "request": "launch",
