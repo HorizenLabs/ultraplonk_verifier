@@ -1,3 +1,18 @@
+// Copyright 2024, The Horizen Foundation
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use anyhow::{Context, Result};
 use std::io::Write;
 use ultraplonk_verifier::{CommitmentField, VerificationKey};
@@ -7,7 +22,6 @@ use crate::utils::{encode_str, encode_u32, encode_value_as_u256, encode_value_as
 
 pub fn process_verification_key(command: &Commands, verbose: bool) -> Result<()> {
     if let Commands::Key { input, output } = command {
-
         if verbose {
             println!("Reading input file: {:?}", input);
         }
@@ -23,9 +37,9 @@ pub fn process_verification_key(command: &Commands, verbose: bool) -> Result<()>
         let vk = parse_solidity_file(&vk_file)
             .with_context(|| format!("Failed to parse Solidity file: {:?}", input))?;
 
-            if verbose {
-                println!("Writing output");
-            }
+        if verbose {
+            println!("Writing output");
+        }
 
         vk_out.write_all(&vk.as_bytes())?;
         Ok(())

@@ -30,7 +30,7 @@ cc = "1.0"
 cmake = "0.1"
 
 [[bin]]
-name = "noir_cli"
+name = "noir-cli"
 path = "src/bin/noir_cli/main.rs"
 required-features = ["bins"]
 
