@@ -13,29 +13,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{Context, Result};
 use std::io::Write;
 use std::path::PathBuf;
 use ultraplonk_verifier::{CommitmentField, VerificationKey};
 
 use crate::cli::Commands;
+use crate::errors::CliError;
 use crate::utils::{encode_str, encode_u32, encode_value_as_u256, encode_value_as_u32, out_file};
 
-pub fn process_verification_key(command: &Commands, verbose: bool) -> Result<()> {
+pub fn process_verification_key(command: &Commands, verbose: bool) -> Result<(), CliError> {
     if let Commands::Key { input, output } = command {
         parse_key_file(input, output.clone(), verbose)
     } else {
-        Err(anyhow::anyhow!("Invalid command"))
+        Err(CliError::CliError("Invalid command".to_string()))
     }
 }
 
-fn parse_key_file(input: &PathBuf, output: Option<PathBuf>, verbose: bool) -> Result<()> {
+fn parse_key_file(input: &PathBuf, output: Option<PathBuf>, verbose: bool) -> Result<(), CliError> {
     if verbose {
         println!("Reading input file: {:?}", input);
     }
 
     let vk_file = std::fs::read_to_string(&input)
-        .with_context(|| format!("Failed to read input file: {:?}", input))?;
+        .map_err(|_| CliError::CliError(format!("Failed to read input file: {:?}", input)))?;
     let mut vk_out = out_file(output.as_ref())?;
 
     if verbose {
@@ -43,20 +43,23 @@ fn parse_key_file(input: &PathBuf, output: Option<PathBuf>, verbose: bool) -> Re
     }
 
     let vk = parse_solidity_file(&vk_file)
-        .with_context(|| format!("Failed to parse Solidity file: {:?}", input))?;
+        .map_err(|e| CliError::CliError(format!("Failed to parse Solidity file: {:?}", e)))?;
 
     if verbose {
         println!("Writing output");
     }
 
-    vk_out
-        .write_all(&vk.as_bytes())
-        .with_context(|| format!("Failed to write output file: {:?}", output))?;
+    vk_out.write_all(&vk.as_bytes()).map_err(|_| {
+        CliError::CliError(format!(
+            "Failed to write output file: {:?}",
+            output.unwrap().to_string_lossy()
+        ))
+    })?;
 
     Ok(())
 }
 
-fn parse_solidity_file(vk_file: &str) -> Result<VerificationKey> {
+fn parse_solidity_file(vk_file: &str) -> Result<VerificationKey, CliError> {
     let mut buf = [0u8; 1719];
     let mut offset = 0;
     encode_u32(0x02, &mut buf, &mut offset); // circuit_type
@@ -135,5 +138,6 @@ fn parse_solidity_file(vk_file: &str) -> Result<VerificationKey> {
     encode_value_as_u256(vk_file, "0x600", &mut buf, &mut offset)?; // ID4.x
     encode_value_as_u256(vk_file, "0x620", &mut buf, &mut offset)?; // ID4.y
 
-    Ok(VerificationKey::try_from(&buf[..])?)
+    VerificationKey::try_from(&buf[..])
+        .map_err(|e| CliError::CliError(format!("Failed to parse verification key: {:?}", e)))
 }
