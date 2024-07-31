@@ -1,8 +1,10 @@
-# Ultraplonk verifier
+# UltraPlonk zk-SNARK Verifier
 
-This is a verifier for the UltraPlonk zk-SNARK circuit. It is a wrapper around the `barretenberg` library, 
-which is a C++ library for zk-SNARKs. The verifier is written in Rust and uses the `barretenberg` library 
-through FFI (Foreign Function Interface).
+The UltraPlonk zk-SNARK verifier is a Rust-based implementation that acts as a wrapper around the [`barretenberg`](https://github.com/AztecProtocol/aztec-packages/tree/master/barretenberg) library. This library, written in C++, specializes in zk-SNARKs (Zero-Knowledge Succinct Non-Interactive Argument of Knowledge) and provides efficient cryptographic primitives for constructing and verifying zero-knowledge proofs. The Rust verifier leverages `barretenberg` through Foreign Function Interface (FFI), allowing it to seamlessly call functions from the C++ library within the Rust environment.
+
+The `barretenberg` library is part of the Aztec Protocol's suite of cryptographic tools. It is designed to support the needs of privacy-focused blockchain applications, providing tools for constructing complex zk-SNARK circuits. The UltraPlonk verifier specifically is built to work with the UltraPlonk protocol, a variant of the Plonk zero-knowledge proof protocol known for its efficiency and flexibility.
+
+In addition, the [Noir language](http://noir-lang.org/) uses `barretenberg` as its cryptographic backend. Noir is a domain-specific language designed for creating and managing zero-knowledge circuits.
 
 ## Usage
 
