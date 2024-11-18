@@ -417,9 +417,8 @@ fn read_commitment(
     }
 
     let key = String::from_utf8(data[*offset..*offset + key_size].to_vec())
-        .map(|s| {
+        .inspect(|_| {
             *offset += key_size;
-            s
         })
         .map_err(|_| VerificationKeyError::InvalidCommitmentKey { offset: *offset })?;
 
@@ -433,9 +432,8 @@ fn read_commitment(
         });
     }
 
-    read_g1(&field, &data[*offset..*offset + 64]).map(|g1| {
+    read_g1(&field, &data[*offset..*offset + 64]).inspect(|_| {
         *offset += 64;
-        g1
     })
 }
 

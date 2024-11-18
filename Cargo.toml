@@ -1,6 +1,6 @@
 [package]
 name = "ultraplonk_verifier"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "A Rust library to verify ultraplonk proof. This library is a wrapping for C++ barretenberg library."
 repository = "https://github.com/HorizenLabs/ultraplonk_verifier"
@@ -28,6 +28,7 @@ serial_test = "3.1.1"
 bindgen = "0.69"
 cc = "1.0"
 cmake = "0.1"
+regex = { version = "1" }
 
 [[bin]]
 name = "noir-cli"
@@ -35,4 +36,11 @@ path = "src/bin/noir_cli/main.rs"
 required-features = ["bins"]
 
 [features]
-bins = ["dep:clap", "dep:hex", "dep:anyhow", "dep:regex", "dep:serde_json", "dep:serde"]
+bins = [
+    "dep:clap",
+    "dep:hex",
+    "dep:anyhow",
+    "dep:regex",
+    "dep:serde_json",
+    "dep:serde",
+]
