@@ -14,11 +14,25 @@
 // limitations under the License.
 
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use regex::Regex;
+
 const BASE_ENV_CACHE: &str = "BARRETENBERG_LIB_DIR";
+/// Enable logging.
+pub const ENABLE_LOGS: bool = false;
+
+#[macro_export]
+macro_rules! log {
+    ($($tokens: tt)*) => {
+        if $crate::ENABLE_LOGS {
+            println!("cargo:warning={}", format!($($tokens)*))
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 enum BuildInfo {
@@ -52,6 +66,67 @@ impl BuildInfo {
     }
 }
 
+fn patch_cmd_base(repo_path: &Path) -> Command {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(repo_path).arg("apply").args([
+        "-q",
+        "--ignore-space-change",
+        "--ignore-whitespace",
+        "--whitespace=nowarn",
+    ]);
+    cmd
+}
+
+fn check_patch(repo_path: &Path, patch: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+    patch_cmd_base(repo_path)
+        .arg("--check")
+        .arg(patch)
+        .status()
+        .map(|s| s.success())
+        .map_err(Into::into)
+}
+
+fn apply_patch(repo_path: &Path, patch: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+    patch_cmd_base(repo_path)
+        .arg(patch)
+        .status()
+        .map(|s| s.success())
+        .map_err(Into::into)
+}
+
+fn check_and_apply_patches(
+    manifest_dir: &Path,
+    repo_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo:rerun-if-changed=patches");
+    let re = Regex::new(&format!(r"{repo_name}_([0-9]+)\.patch"))?;
+    let repo_path = manifest_dir.join(repo_name);
+    let mut patches = fs::read_dir(manifest_dir.join("patches"))?
+        .inspect(|p| log!("Analyze {p:?}"))
+        .filter_map(|p| p.ok())
+        .filter_map(|p| match p.file_type() {
+            Ok(f) if f.is_file() => Some(p.path()),
+            _ => None,
+        })
+        .filter(|p| re.is_match(p.file_name().and_then(OsStr::to_str).unwrap()))
+        .inspect(|p| log!("Selected {}", p.display()))
+        .collect::<Vec<_>>();
+    patches.sort();
+    for patch in patches {
+        log!("Check and apply patch: {}", patch.display());
+        if check_patch(&repo_path, &patch)? {
+            log!("Applying patch: {}", patch.display());
+            if !apply_patch(&repo_path, &patch)? {
+                log!("Applying patch: {}", patch.display());
+            }
+        } else {
+            log!("Already patched: {}", patch.display());
+        }
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up paths
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
@@ -65,6 +140,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .args(["submodule", "update", "--init", "--recursive"])
             .status()?;
     }
+
+    // Check barretenberg patches
+    check_and_apply_patches(&manifest_dir, "barretenberg")?;
 
     // Copy files from assets/code to barretenberg/cpp/src/barretenberg/dsl/acir_proofs
     for entry in fs::read_dir(assets_path)? {
@@ -114,13 +192,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "numeric",
             "polynomials",
             "transcript",
-            "ecc",
             "stdlib_circuit_builders",
-            "plonk",
             "srs",
             "crypto_keccak",
-            "crypto_pedersen_hash",
             "crypto_pedersen_commitment",
+            "crypto_pedersen_hash",
+            "ecc",
+            "plonk",
             "execution_trace",
             "dsl",
         ];
@@ -134,6 +212,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rustc-link-search=native={lib_dirs}");
         components
             .iter()
+            .rev()
             .for_each(|c| println!("cargo:rustc-link-lib=static={c}"));
         println!("cargo:rustc-link-lib=static=env");
         if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
@@ -164,12 +243,12 @@ fn compile_static_libs(lib_path: &PathBuf, build_info: BuildInfo, components: &[
         .define("MULTITHREADING", "OFF")
         .very_verbose(true);
     components.iter().for_each(|c| {
+        log!("Building {}", c);
         cfg.build_target(c);
     });
     if !cfg!(target_os = "macos") {
-        cfg.define("TARGET_ARCH", "native");
+        cfg.define("TARGET_ARCH", "x86-64");
     }
-
     // Build using the cmake crate
     cfg.build()
 }
